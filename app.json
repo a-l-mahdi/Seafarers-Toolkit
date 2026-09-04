@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "seafarer-app",
-    "slug": "seafarer-app",
+    "name": "Seafarers Toolkit",
+    "slug": "seafarers-toolkit",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "seafarerapp",
+    "scheme": "seafarerstoolkit",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"
@@ -47,6 +47,7 @@
       "eas": {
         "projectId": "b7a7eaa8-c716-4b08-8547-41f47df796fe"
       }
-    }
+    },
+    "owner": "a-l-mahdi"
   }
 }

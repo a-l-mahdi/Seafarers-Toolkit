@@ -1,56 +1,59 @@
-# Welcome to your Expo app 👋
+# Seafarers Toolkit
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A personal management app for seafarers — documents, contracts, sea time, career progress, and leave tracking.
 
-## Get started
+Built with React Native + Expo (SDK 57), TypeScript, Expo Router, TanStack Query, Zustand, and SQLite (offline-first).
 
-1. Install dependencies
+## Features
 
-   ```bash
-   npm install
-   ```
+- **Dashboard** — rank, contract countdown, sea time progress, document alerts at a glance
+- **Documents** — store certificates (PDF/JPG/PNG), expiry tracking with notifications
+- **Contracts & Vessels** — join/sign-off dates, auto-calculated contract end, countdown
+- **Sea Time** — auto-calculated from contracts + manual historical records, broken down by rank
+- **Career** — next rank requirements, progress bar, estimated promotion date
+- **Leave** — onboard/leave ratio, expected return date after sign-off
+- **Calendar** — onboard/leave/expiry visualization
+- **i18n** — English & Persian (RTL) with Jalali calendar support
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Getting started
 
 ```bash
-npm run reset-project
+npm install
+npm start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Scripts
 
-### Other setup steps
+| Command | Description |
+| --- | --- |
+| `npm start` | Start Expo dev server |
+| `npm run android` | Run on Android |
+| `npm run ios` | Run on iOS (macOS required) |
+| `npm test` | Run unit tests (Jest) |
+| `npm run typecheck` | TypeScript check |
+| `npm run lint` | ESLint |
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Building an APK
 
-## Learn more
+Uses [EAS Build](https://docs.expo.dev/build/introduction/) with the `preview` profile (produces an installable APK):
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+eas build -p android --profile preview
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Project structure
 
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```
+src/
+├── app/          # Expo Router screens (tabs + modals)
+├── components/   # Reusable UI components
+├── constants/    # Theme tokens
+├── database/     # SQLite schema + repositories
+├── domain/       # Pure business logic (sea time, contracts, career, leave)
+├── hooks/        # TanStack Query hooks
+├── i18n/         # en/fa translations
+├── services/     # File storage, notifications
+├── store/        # Zustand settings store
+├── types/        # Domain types
+└── utils/        # Date utilities (timezone-safe, Jalali), validation
+```

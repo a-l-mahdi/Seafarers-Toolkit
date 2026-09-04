@@ -1,0 +1,298 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type {
+  AppNotification,
+  Contract,
+  Document,
+  DocumentFile,
+  LeaveSettings,
+  Profile,
+  Rank,
+  RankRequirement,
+  SeaTimeRecord,
+  Vessel,
+} from '@/types/domain';
+import * as RanksRepo from '@/database/repositories/ranks-repository';
+import * as ProfileRepo from '@/database/repositories/profile-repository';
+import * as VesselsRepo from '@/database/repositories/vessels-repository';
+import * as SeaTimeRepo from '@/database/repositories/sea-time-repository';
+import * as DocumentsRepo from '@/database/repositories/documents-repository';
+import * as NotificationsRepo from '@/database/repositories/notifications-repository';
+import type { ContractListRow, DocumentListRow } from '@/database/repositories';
+
+export const queryKeys = {
+  profile: ['profile'] as const,
+  ranks: ['ranks'] as const,
+  rankRequirements: ['rank-requirements'] as const,
+  vessels: ['vessels'] as const,
+  contracts: ['contracts'] as const,
+  documents: ['documents'] as const,
+  documentTypes: ['document-types'] as const,
+  documentFiles: (id: string) => ['document-files', id] as const,
+  seaTime: ['sea-time'] as const,
+  seaTimeRecords: ['sea-time-records'] as const,
+  leaveSettings: ['leave-settings'] as const,
+  notifications: ['notifications'] as const,
+};
+
+export function useProfile() {
+  return useQuery({ queryKey: queryKeys.profile, queryFn: ProfileRepo.getProfile });
+}
+
+export function useSaveProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Omit<Profile, 'id' | 'updatedAt'>) => ProfileRepo.saveProfile(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.profile }),
+  });
+}
+
+export function useRanks() {
+  return useQuery({ queryKey: queryKeys.ranks, queryFn: RanksRepo.listRanks });
+}
+
+export function useCreateRank() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { department: Rank['department']; name: string; level: number }) =>
+      RanksRepo.createRank(input.department, input.name, input.level),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ranks }),
+  });
+}
+
+export function useDeleteRank() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => RanksRepo.deleteRank(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ranks }),
+  });
+}
+
+export function useRankRequirements() {
+  return useQuery({ queryKey: queryKeys.rankRequirements, queryFn: RanksRepo.listRankRequirements });
+}
+
+export function useRequiredSeaTime(fromRankId: string | null, toRankId: string | null) {
+  return useQuery({
+    queryKey: [...queryKeys.rankRequirements, 'required', fromRankId, toRankId],
+    queryFn: () => RanksRepo.getRequiredSeaTimeFor(fromRankId, toRankId),
+    enabled: !!toRankId,
+  });
+}
+
+export function useSaveRankRequirement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (requirement: RankRequirement) => RanksRepo.upsertRankRequirement(requirement),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.rankRequirements }),
+  });
+}
+
+export function useVessels() {
+  return useQuery({ queryKey: queryKeys.vessels, queryFn: () => VesselsRepo.listVessels() });
+}
+
+export function useSaveVessel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Omit<Vessel, 'id' | 'createdAt'> & { id?: string }) =>
+      VesselsRepo.saveVessel(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.vessels });
+      qc.invalidateQueries({ queryKey: queryKeys.contracts });
+    },
+  });
+}
+
+export function useDeleteVessel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => VesselsRepo.deleteVessel(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.vessels });
+      qc.invalidateQueries({ queryKey: queryKeys.contracts });
+    },
+  });
+}
+
+export function useContracts() {
+  return useQuery({ queryKey: queryKeys.contracts, queryFn: VesselsRepo.listContracts });
+}
+
+export function useSaveContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Omit<Contract, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) =>
+      VesselsRepo.saveContract(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.contracts });
+      qc.invalidateQueries({ queryKey: queryKeys.seaTime });
+    },
+  });
+}
+
+export function useSignOffContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, date }: { id: string; date: string }) =>
+      VesselsRepo.signOffContract(id, date),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.contracts });
+      qc.invalidateQueries({ queryKey: queryKeys.seaTime });
+    },
+  });
+}
+
+export function useDeleteContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => VesselsRepo.deleteContract(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.contracts });
+      qc.invalidateQueries({ queryKey: queryKeys.seaTime });
+    },
+  });
+}
+
+export function useDocuments() {
+  return useQuery({ queryKey: queryKeys.documents, queryFn: () => DocumentsRepo.listDocuments() });
+}
+
+export function useSaveDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Omit<Document, 'id' | 'createdAt'> & { id?: string }) =>
+      DocumentsRepo.saveDocument(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.documents }),
+  });
+}
+
+export function useDeleteDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => DocumentsRepo.deleteDocument(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.documents }),
+  });
+}
+
+export function useDocumentTypes() {
+  return useQuery({ queryKey: queryKeys.documentTypes, queryFn: DocumentsRepo.listDocumentTypes });
+}
+
+export function useCreateDocumentType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => DocumentsRepo.createDocumentType(name),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.documentTypes }),
+  });
+}
+
+export function useDocumentFiles(documentId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.documentFiles(documentId ?? 'none'),
+    queryFn: () => DocumentsRepo.listDocumentFiles(documentId!),
+    enabled: !!documentId,
+  });
+}
+
+export function useAddDocumentFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: Omit<DocumentFile, 'id' | 'createdAt'>) =>
+      DocumentsRepo.saveDocumentFile(file),
+    onSuccess: (_data, file) => {
+      qc.invalidateQueries({ queryKey: queryKeys.documentFiles(file.documentId) });
+    },
+  });
+}
+
+export function useDeleteDocumentFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string; documentId: string }) => DocumentsRepo.deleteDocumentFile(id),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.documentFiles(vars.documentId) });
+    },
+  });
+}
+
+export function useSeaTimeSummary() {
+  return useQuery({
+    queryKey: queryKeys.seaTime,
+    queryFn: async () => {
+      const [contracts, ranks] = await Promise.all([VesselsRepo.listContracts(), RanksRepo.listRanks()]);
+      const rankNames = new Map(ranks.map((r) => [r.id, r.name]));
+      return SeaTimeRepo.getSeaTimeSummary(contracts, rankNames);
+    },
+  });
+}
+
+export function useSeaTimeRecords() {
+  return useQuery({ queryKey: queryKeys.seaTimeRecords, queryFn: SeaTimeRepo.listSeaTimeRecords });
+}
+
+export function useSaveSeaTimeRecord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      input: Omit<SeaTimeRecord, 'id' | 'createdAt'> & { id?: string }
+    ) => SeaTimeRepo.saveSeaTimeRecord(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.seaTimeRecords });
+      qc.invalidateQueries({ queryKey: queryKeys.seaTime });
+    },
+  });
+}
+
+export function useDeleteSeaTimeRecord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => SeaTimeRepo.deleteSeaTimeRecord(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.seaTimeRecords });
+      qc.invalidateQueries({ queryKey: queryKeys.seaTime });
+    },
+  });
+}
+
+export function useLeaveSettings() {
+  return useQuery({ queryKey: queryKeys.leaveSettings, queryFn: RanksRepo.getLeaveSettings });
+}
+
+export function useSaveLeaveSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (settings: LeaveSettings) => RanksRepo.saveLeaveSettings(settings),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.leaveSettings }),
+  });
+}
+
+export function useNotifications() {
+  return useQuery({ queryKey: queryKeys.notifications, queryFn: () => NotificationsRepo.listNotifications() });
+}
+
+export function useMarkNotificationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => NotificationsRepo.markRead(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => NotificationsRepo.markAllRead(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
+  });
+}
+
+export function useDismissNotification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => NotificationsRepo.dismiss(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
+  });
+}
+
+export type { ContractListRow, DocumentListRow };
+export type { AppNotification };

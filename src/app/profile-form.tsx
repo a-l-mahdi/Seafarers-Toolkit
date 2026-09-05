@@ -4,6 +4,7 @@ import { useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/primitives';
 import { HeaderBar, LabeledInput, Select } from '@/components/ui/form';
+import { DatePickerField } from '@/components/ui/date-picker';
 import { useProfile, useRanks, useSaveProfile } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
@@ -61,12 +62,7 @@ function ProfileForm({ initial }: { initial: Profile | null }) {
       <ScrollView contentContainerStyle={styles.form}>
         <LabeledInput label={t('profile.firstName')} value={firstName} onChangeText={setFirstName} />
         <LabeledInput label={t('profile.lastName')} value={lastName} onChangeText={setLastName} />
-        <LabeledInput
-          label={`${t('profile.dateOfBirth')} (YYYY-MM-DD)`}
-          value={dateOfBirth}
-          onChangeText={setDateOfBirth}
-          placeholder="1990-01-01"
-        />
+        <DatePickerField label={t('profile.dateOfBirth')} value={dateOfBirth} onChange={setDateOfBirth} />
         <LabeledInput label={t('profile.nationality')} value={nationality} onChangeText={setNationality} />
         <LabeledInput label={t('profile.email')} value={email} onChangeText={setEmail} keyboardType="email-address" />
         <LabeledInput label={t('profile.phone')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />

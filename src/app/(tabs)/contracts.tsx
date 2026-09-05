@@ -3,6 +3,7 @@ import { Link, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge, EmptyState, ProgressBar } from '@/components/ui/primitives';
 import { useContracts, useSignOffContract } from '@/hooks/queries';
+import { useFormattedDate } from '@/hooks/use-date-format';
 import { contractCountdown } from '@/domain/contract';
 import { todayISO } from '@/utils/date';
 import { useTheme } from '@/hooks/use-theme';
@@ -45,6 +46,7 @@ export default function ContractsScreen() {
 function ContractRow({ item, statusTone }: { item: ContractListRow; statusTone: Record<string, 'success' | 'info' | 'muted'> }) {
   const { t } = useTranslation();
   const colors = useTheme();
+  const formatDate = useFormattedDate();
   const signOff = useSignOffContract();
   const countdown = contractCountdown(item);
 
@@ -66,7 +68,7 @@ function ContractRow({ item, statusTone }: { item: ContractListRow; statusTone: 
           <Badge label={t(`contracts.${item.status}`)} tone={statusTone[item.status]} />
         </View>
         <Text style={[styles.meta, { color: colors.textMuted }]}>
-          {item.rankName ?? '—'} · {item.joinDate} → {item.actualSignOff ?? item.expectedSignOff}
+          {item.rankName ?? '—'} · {formatDate(item.joinDate)} → {formatDate(item.actualSignOff ?? item.expectedSignOff)}
         </Text>
         {!item.actualSignOff ? (
           <>

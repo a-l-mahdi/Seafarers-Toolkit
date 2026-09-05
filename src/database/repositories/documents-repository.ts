@@ -20,6 +20,8 @@ function mapDocument(row: Record<string, unknown>): Document {
     expiryDate: (row.expiry_date as string) ?? null,
     issuingAuthority: (row.issuing_authority as string) ?? null,
     issuingCountry: (row.issuing_country as string) ?? null,
+    warningThresholdDays: (row.warning_threshold_days as number) ?? null,
+    validThresholdDays: (row.valid_threshold_days as number) ?? null,
     notes: (row.notes as string) ?? null,
     createdAt: String(row.created_at),
   };
@@ -56,7 +58,14 @@ export async function listDocuments(now = new Date()): Promise<DocumentListRow[]
     return {
       ...doc,
       typeName: (row.type_name as string) ?? null,
-      status: documentStatus(doc.expiryDate, now),
+      status: documentStatus(
+        {
+          expiryDate: doc.expiryDate,
+          warningThresholdDays: doc.warningThresholdDays,
+          validThresholdDays: doc.validThresholdDays,
+        },
+        now
+      ),
       daysUntilExpiry: doc.expiryDate ? daysUntilExpiry(doc.expiryDate, now) : null,
     };
   });
@@ -77,12 +86,14 @@ export async function saveDocument(
     ? await db.getFirstAsync<{ created_at: string }>('SELECT created_at FROM documents WHERE id = ?', id)
     : null;
   await db.runAsync(
-    `INSERT INTO documents (id, type_id, name, number, issue_date, expiry_date, issuing_authority, issuing_country, notes, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO documents (id, type_id, name, number, issue_date, expiry_date, issuing_authority, issuing_country, warning_threshold_days, valid_threshold_days, notes, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        type_id = excluded.type_id, name = excluded.name, number = excluded.number,
        issue_date = excluded.issue_date, expiry_date = excluded.expiry_date,
        issuing_authority = excluded.issuing_authority, issuing_country = excluded.issuing_country,
+       warning_threshold_days = excluded.warning_threshold_days,
+       valid_threshold_days = excluded.valid_threshold_days,
        notes = excluded.notes`,
     id,
     input.typeId,
@@ -92,6 +103,8 @@ export async function saveDocument(
     input.expiryDate,
     input.issuingAuthority,
     input.issuingCountry,
+    input.warningThresholdDays,
+    input.validThresholdDays,
     input.notes,
     existing?.created_at ?? isoNow()
   );

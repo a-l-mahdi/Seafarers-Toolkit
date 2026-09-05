@@ -4,11 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { Card, EmptyState, FieldRow } from '@/components/ui/primitives';
 import { useDeleteSeaTimeRecord, useProfile, useRanks, useSeaTimeRecords, useSeaTimeSummary } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
+import { useFormattedDate } from '@/hooks/use-date-format';
 import { Radius, Spacing } from '@/constants/theme';
 
 export default function SeaTimeScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
+  const formatDate = useFormattedDate();
   const { data: summary } = useSeaTimeSummary();
   const { data: records } = useSeaTimeRecords();
   const { data: ranks } = useRanks();
@@ -78,7 +80,7 @@ export default function SeaTimeScreen() {
                 {item.hours ? ` ${item.hours}h` : ''}
               </Text>
               <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                {item.fromDate ?? '—'} → {item.toDate ?? '—'}
+                {formatDate(item.fromDate) ?? '—'} → {formatDate(item.toDate) ?? '—'}
                 {item.verified ? ` · ${t('seaTime.verified')}` : ''}
               </Text>
             </View>

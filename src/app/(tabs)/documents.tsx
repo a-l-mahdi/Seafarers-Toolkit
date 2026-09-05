@@ -3,6 +3,7 @@ import { Link, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge, EmptyState } from '@/components/ui/primitives';
 import { useDocuments } from '@/hooks/queries';
+import { useFormattedDate } from '@/hooks/use-date-format';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Spacing } from '@/constants/theme';
 import type { DocumentListRow } from '@/hooks/queries';
@@ -10,6 +11,7 @@ import type { DocumentListRow } from '@/hooks/queries';
 const STATUS_TONE = {
   valid: 'success',
   expiring_soon: 'warning',
+  not_valid: 'danger',
   expired: 'danger',
   no_expiry: 'muted',
 } as const;
@@ -48,6 +50,7 @@ export default function DocumentsScreen() {
 function DocumentRow({ item }: { item: DocumentListRow }) {
   const { t } = useTranslation();
   const colors = useTheme();
+  const formatDate = useFormattedDate();
   return (
     <Link href={`/document-form?id=${item.id}`} asChild>
       <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -55,7 +58,7 @@ function DocumentRow({ item }: { item: DocumentListRow }) {
           <Text style={[styles.name, { color: colors.text }]}>{item.name}</Text>
           <Text style={[styles.meta, { color: colors.textMuted }]}>
             {item.typeName ?? '—'}
-            {item.expiryDate ? ` · ${t('documents.expiryDate')}: ${item.expiryDate}` : ''}
+            {item.expiryDate ? ` · ${t('documents.expiryDate')}: ${formatDate(item.expiryDate)}` : ''}
           </Text>
         </View>
         <Badge label={t(`documents.status.${item.status}`)} tone={STATUS_TONE[item.status]} />

@@ -4,6 +4,7 @@ import { useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/primitives';
 import { HeaderBar, LabeledInput, Select } from '@/components/ui/form';
+import { DatePickerField } from '@/components/ui/date-picker';
 import { useProfile, useRanks, useSaveSeaTimeRecord } from '@/hooks/queries';
 import { isISODate } from '@/utils/date';
 import { useTheme } from '@/hooks/use-theme';
@@ -63,18 +64,8 @@ export default function SeaTimeFormScreen() {
           options={(ranks ?? []).map((r) => ({ id: r.id, label: r.name }))}
           onSelect={setRankId}
         />
-        <LabeledInput
-          label={`${t('seaTime.fromDate')} (YYYY-MM-DD)`}
-          value={fromDate}
-          onChangeText={setFromDate}
-          placeholder="2020-01-01"
-        />
-        <LabeledInput
-          label={`${t('seaTime.toDate')} (YYYY-MM-DD)`}
-          value={toDate}
-          onChangeText={setToDate}
-          placeholder="2021-01-01"
-        />
+        <DatePickerField label={t('seaTime.fromDate')} value={fromDate} onChange={setFromDate} />
+        <DatePickerField label={t('seaTime.toDate')} value={toDate} onChange={setToDate} />
         <LabeledInput label={t('seaTime.days')} value={days} onChangeText={setDays} keyboardType="numeric" />
         <LabeledInput label={t('seaTime.hours')} value={hours} onChangeText={setHours} keyboardType="numeric" />
         <View style={styles.checkRow}>

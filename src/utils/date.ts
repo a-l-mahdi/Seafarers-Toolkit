@@ -89,6 +89,68 @@ export function formatJalali(iso: string): string {
   return format(toUtc(iso), 'yyyy/MM/dd');
 }
 
+export function gregorianToJalali(iso: string): string {
+  return formatJalali(iso);
+}
+
+/** Converts a Jalali date string (yyyy/MM/dd or yyyy-MM-dd) to an ISO Gregorian date. */
+export function jalaliToGregorian(jalali: string): string | null {
+  if (!/^\d{4}[/-]\d{1,2}[/-]\d{1,2}$/.test(jalali)) return null;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { parse } = require('date-fns-jalali') as typeof import('date-fns-jalali');
+  const normalized = jalali.replace(/-/g, '/');
+  const parts = normalized.split('/').map((p) => p.padStart(2, '0'));
+  const parsed = parse(parts.join('/'), 'yyyy/MM/dd', new Date());
+  if (Number.isNaN(parsed.getTime())) return null;
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${parsed.getFullYear()}-${p(parsed.getMonth() + 1)}-${p(parsed.getDate())}`;
+}
+
+export const JALALI_MONTHS = [
+  'فروردین',
+  'اردیبهشت',
+  'خرداد',
+  'تیر',
+  'مرداد',
+  'شهریور',
+  'مهر',
+  'آبان',
+  'آذر',
+  'دی',
+  'بهمن',
+  'اسفند',
+];
+
+export const GREGORIAN_MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+/** Month lengths for a Jalali year (months 1-6:31, 7-11:30, 12:29 or 30 on leap). */
+export function jalaliDaysInMonth(jYear: number, jMonth: number): number {
+  if (jMonth <= 6) return 31;
+  if (jMonth <= 11) return 30;
+  // A Jalali year is leap iff 12/30 exists; detect by round-tripping through conversion.
+  const g = jalaliToGregorian(`${jYear}/12/30`);
+  if (!g) return 29;
+  return gregorianToJalali(g).startsWith(`${jYear}/12/30`) ? 30 : 29;
+}
+
+export function jalaliToGregorianExact(jYear: number, jMonth: number, jDay: number): string | null {
+  const clampedDay = Math.min(jDay, jalaliDaysInMonth(jYear, jMonth));
+  return jalaliToGregorian(`${jYear}/${jMonth}/${clampedDay}`);
+}
+
 export function isoNow(): string {
   return new Date().toISOString();
 }

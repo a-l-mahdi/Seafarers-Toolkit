@@ -7,6 +7,7 @@ import { careerProgress, estimatedQualificationDate } from '@/domain/career';
 import { contractCountdown } from '@/domain/contract';
 import { expectedReturnDate, daysUntilReturn } from '@/domain/leave';
 import { todayISO } from '@/utils/date';
+import { useFormattedDate } from '@/hooks/use-date-format';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
 
@@ -14,6 +15,7 @@ export default function DashboardScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useTheme();
+  const formatDate = useFormattedDate();
   const { data: profile } = useProfile();
   const { data: ranks } = useRanks();
   const { data: contracts } = useContracts();
@@ -37,7 +39,7 @@ export default function DashboardScreen() {
     activeContract?.expectedSignOff ?? null
   );
 
-  const docStats = { valid: 0, expiring_soon: 0, expired: 0, no_expiry: 0 };
+  const docStats = { valid: 0, expiring_soon: 0, not_valid: 0, expired: 0, no_expiry: 0 };
   for (const doc of documents ?? []) docStats[doc.status] += 1;
 
   const lastSignOff = contracts
@@ -87,7 +89,7 @@ export default function DashboardScreen() {
         <ProgressBar progress={progress.progress} tone={progress.complete ? 'success' : 'primary'} />
         <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>
           {Math.round(progress.progress * 100)}%
-          {estimated ? ` · ${t('career.estimatedDate')}: ${estimated}` : ''}
+          {estimated ? ` · ${t('career.estimatedDate')}: ${formatDate(estimated)}` : ''}
         </Text>
       </Card>
 
@@ -97,8 +99,8 @@ export default function DashboardScreen() {
           <>
             <FieldRow label={t('vessels.title')} value={activeContract.vesselName} />
             <FieldRow label={t('contracts.rank')} value={activeContract.rankName} />
-            <FieldRow label={t('dashboard.joinDate')} value={activeContract.joinDate} />
-            <FieldRow label={t('dashboard.signOff')} value={activeContract.expectedSignOff} />
+            <FieldRow label={t('dashboard.joinDate')} value={formatDate(activeContract.joinDate)} />
+            <FieldRow label={t('dashboard.signOff')} value={formatDate(activeContract.expectedSignOff)} />
             <FieldRow label={t('dashboard.remaining')} value={`${countdown.remainingDays} ${t('common.days')}`} />
             <ProgressBar progress={countdown.progress} />
           </>
@@ -110,7 +112,7 @@ export default function DashboardScreen() {
       {onLeave && returnDate ? (
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('dashboard.leave')}</Text>
-          <FieldRow label={t('dashboard.expectedReturn')} value={returnDate} />
+          <FieldRow label={t('dashboard.expectedReturn')} value={formatDate(returnDate)} />
           <FieldRow label={t('dashboard.daysRemaining')} value={`${daysUntilReturn(returnDate)}`} />
         </Card>
       ) : null}

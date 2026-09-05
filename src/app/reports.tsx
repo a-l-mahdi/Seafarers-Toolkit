@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { Badge, Card, FieldRow } from '@/components/ui/primitives';
 import { useContracts, useDocuments, useProfile, useRanks, useRequiredSeaTime, useSeaTimeSummary } from '@/hooks/queries';
 import { contractCountdown } from '@/domain/contract';
+import { useFormattedDate } from '@/hooks/use-date-format';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
 
 export default function ReportsScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
+  const formatDate = useFormattedDate();
   const { data: seaTime } = useSeaTimeSummary();
   const { data: contracts } = useContracts();
   const { data: documents } = useDocuments();
@@ -53,7 +55,7 @@ export default function ReportsScreen() {
             <View key={c.id} style={styles.contractRow}>
               <Text style={{ color: colors.text, fontWeight: '600' }}>{c.vesselName ?? '—'}</Text>
               <Text style={{ color: colors.textMuted, fontSize: 13 }}>
-                {c.joinDate} → {c.actualSignOff ?? c.expectedSignOff} · {cd.totalDays} {t('common.days')}
+                {formatDate(c.joinDate)} → {formatDate(c.actualSignOff ?? c.expectedSignOff)} · {cd.totalDays} {t('common.days')}
               </Text>
             </View>
           );

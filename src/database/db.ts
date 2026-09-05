@@ -85,6 +85,8 @@ CREATE TABLE IF NOT EXISTS documents (
   expiry_date TEXT,
   issuing_authority TEXT,
   issuing_country TEXT,
+  warning_threshold_days INTEGER,
+  valid_threshold_days INTEGER,
   notes TEXT,
   created_at TEXT NOT NULL
 );
@@ -132,11 +134,23 @@ export async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
       const db = await SQLite.openDatabaseAsync('seafarer.db');
       await db.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
       await db.execAsync(SCHEMA);
+      await migrate(db);
       await seedDefaults(db);
       return db;
     })();
   }
   return dbPromise;
+}
+
+async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
+  const docCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(documents)');
+  const names = new Set(docCols.map((c) => c.name));
+  if (!names.has('warning_threshold_days')) {
+    await db.execAsync('ALTER TABLE documents ADD COLUMN warning_threshold_days INTEGER');
+  }
+  if (!names.has('valid_threshold_days')) {
+    await db.execAsync('ALTER TABLE documents ADD COLUMN valid_threshold_days INTEGER');
+  }
 }
 
 async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {

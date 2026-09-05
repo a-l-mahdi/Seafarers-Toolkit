@@ -14,11 +14,13 @@ import {
 } from '@/hooks/queries';
 import { careerProgress, estimatedQualificationDate } from '@/domain/career';
 import { useTheme } from '@/hooks/use-theme';
+import { useFormattedDate } from '@/hooks/use-date-format';
 import { Spacing } from '@/constants/theme';
 
 export default function CareerScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
+  const formatDate = useFormattedDate();
   const [editing, setEditing] = useState(false);
   const [requiredInput, setRequiredInput] = useState('');
 
@@ -105,7 +107,7 @@ export default function CareerScreen() {
             ) : (
               <FieldRow
                 label={t('career.estimatedDate')}
-                value={estimated ?? t('career.notPredictable')}
+                value={estimated ? formatDate(estimated) : t('career.notPredictable')}
               />
             )}
             <Button label={t('career.editRequirement')} onPress={startEdit} variant="secondary" />

@@ -14,6 +14,9 @@ const fa: Translation = {
     today: 'امروز',
     days: 'روز',
     day: 'روز',
+    year: 'سال',
+    month: 'ماه',
+    dayOfMonth: 'روز',
     confirm: 'تأیید',
     confirmDelete: 'آیا از حذف این مورد مطمئن هستید؟',
     notSet: 'ثبت نشده',
@@ -103,9 +106,14 @@ const fa: Translation = {
     status: {
       valid: 'معتبر',
       expiring_soon: 'نزدیک انقضا',
+      not_valid: 'غیرقابل عزیمت',
       expired: 'منقضی',
       no_expiry: 'بدون انقضا',
     },
+    warningThreshold: 'هشدار تمدید (روز قبل از انقضا)',
+    validThreshold: 'حداقل اعتبار برای عزیمت (روز)',
+    thresholdHint:
+      'قانون شرکت: مدرک باید حداقل ۱۸۰ روز (۶ ماه) اعتبار داشته باشد تا دریانورد بتواند جوین کند. هشدار را حدود ۳۰ روز قبل از رسیدن به این حد (۲۱۰ روز) تنظیم کنید.',
     errors: {
       expiryBeforeIssue: 'تاریخ انقضا باید بعد از تاریخ صدور باشد',
       nameRequired: 'نام مدرک الزامی است',

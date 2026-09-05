@@ -6,7 +6,12 @@ export type SeaTimeSource = 'contract' | 'manual' | 'imported' | 'verified';
 
 export type ContractStatus = 'active' | 'completed' | 'planned';
 
-export type DocumentStatusType = 'valid' | 'expiring_soon' | 'expired' | 'no_expiry';
+export type DocumentStatusType =
+  | 'valid'
+  | 'expiring_soon'
+  | 'not_valid'
+  | 'expired'
+  | 'no_expiry';
 
 export type LeaveMode = 'ratio' | 'manual';
 
@@ -133,6 +138,10 @@ export interface Document {
   expiryDate: string | null;
   issuingAuthority: string | null;
   issuingCountry: string | null;
+  /** Days before expiry to warn the user to renew (e.g. 210 = warn 1 month before the 6-month rule). */
+  warningThresholdDays: number | null;
+  /** Minimum remaining validity (days) required to join a vessel (e.g. 180 = 6 months). */
+  validThresholdDays: number | null;
   notes: string | null;
   createdAt: string;
 }

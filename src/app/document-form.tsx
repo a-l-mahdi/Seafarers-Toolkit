@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Button, FieldRow } from '@/components/ui/primitives';
+import { Badge, Button, FieldRow } from '@/components/ui/primitives';
 import { HeaderBar, LabeledInput, Select } from '@/components/ui/form';
+import { DatePickerField } from '@/components/ui/date-picker';
 import {
   useAddDocumentFile,
   useDeleteDocumentFile,
@@ -19,10 +20,19 @@ import {
   pickDocumentFile,
   removeImportedFile,
 } from '@/services/file-storage';
-import { isISODate } from '@/utils/date';
+import { useFormattedDate } from '@/hooks/use-date-format';
+import { DEFAULT_VALIDITY_DAYS } from '@/domain/document-status';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
 import type { DocumentListRow } from '@/hooks/queries';
+
+const STATUS_TONE = {
+  valid: 'success',
+  expiring_soon: 'warning',
+  not_valid: 'danger',
+  expired: 'danger',
+  no_expiry: 'muted',
+} as const;
 
 export default function DocumentFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -43,6 +53,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useTheme();
+  const formatDate = useFormattedDate();
   const { data: types } = useDocumentTypes();
   const save = useSaveDocument();
   const remove = useDeleteDocument();
@@ -52,6 +63,12 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   const [typeId, setTypeId] = useState<string | null>(initial?.typeId ?? null);
   const [issueDate, setIssueDate] = useState(initial?.issueDate ?? '');
   const [expiryDate, setExpiryDate] = useState(initial?.expiryDate ?? '');
+  const [warningThreshold, setWarningThreshold] = useState(
+    initial?.warningThresholdDays?.toString() ?? '210'
+  );
+  const [validThreshold, setValidThreshold] = useState(
+    initial?.validThresholdDays?.toString() ?? String(DEFAULT_VALIDITY_DAYS)
+  );
   const [authority, setAuthority] = useState(initial?.issuingAuthority ?? '');
   const [country, setCountry] = useState(initial?.issuingCountry ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
@@ -62,7 +79,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
       setError(t('documents.errors.nameRequired'));
       return;
     }
-    if (issueDate && expiryDate && isISODate(issueDate) && isISODate(expiryDate) && expiryDate <= issueDate) {
+    if (issueDate && expiryDate && expiryDate <= issueDate) {
       setError(t('documents.errors.expiryBeforeIssue'));
       return;
     }
@@ -71,10 +88,12 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
       name: name.trim(),
       number: number.trim() || null,
       typeId,
-      issueDate: isISODate(issueDate) ? issueDate : null,
-      expiryDate: isISODate(expiryDate) ? expiryDate : null,
+      issueDate: issueDate || null,
+      expiryDate: expiryDate || null,
       issuingAuthority: authority.trim() || null,
       issuingCountry: country.trim() || null,
+      warningThresholdDays: parseInt(warningThreshold, 10) || null,
+      validThresholdDays: parseInt(validThreshold, 10) || null,
       notes: notes.trim() || null,
     });
     router.back();
@@ -99,11 +118,16 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar
-        title={t('documents.add')}
+        title={initial ? t('common.edit') : t('documents.add')}
         onBack={() => router.back()}
         action={initial ? { label: t('common.delete'), onPress: confirmDelete } : undefined}
       />
       <ScrollView contentContainerStyle={styles.form}>
+        {initial ? (
+          <View style={styles.statusRow}>
+            <Badge label={t(`documents.status.${initial.status}`)} tone={STATUS_TONE[initial.status]} />
+          </View>
+        ) : null}
         <LabeledInput label={t('documents.name')} value={name} onChangeText={setName} error={error} />
         <LabeledInput label={t('documents.number')} value={number} onChangeText={setNumber} />
         <Select
@@ -112,23 +136,41 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
           options={(types ?? []).map((ty) => ({ id: ty.id, label: ty.name }))}
           onSelect={setTypeId}
         />
+        <DatePickerField label={t('documents.issueDate')} value={issueDate} onChange={setIssueDate} />
+        <DatePickerField label={t('documents.expiryDate')} value={expiryDate} onChange={setExpiryDate} />
         <LabeledInput
-          label={`${t('documents.issueDate')} (YYYY-MM-DD)`}
-          value={issueDate}
-          onChangeText={setIssueDate}
-          placeholder="2026-01-31"
+          label={t('documents.warningThreshold')}
+          value={warningThreshold}
+          onChangeText={setWarningThreshold}
+          keyboardType="numeric"
         />
         <LabeledInput
-          label={`${t('documents.expiryDate')} (YYYY-MM-DD)`}
-          value={expiryDate}
-          onChangeText={setExpiryDate}
-          placeholder="2030-01-31"
+          label={t('documents.validThreshold')}
+          value={validThreshold}
+          onChangeText={setValidThreshold}
+          keyboardType="numeric"
         />
+        <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: -8, marginBottom: Spacing.md }}>
+          {t('documents.thresholdHint')}
+        </Text>
         <LabeledInput label={t('documents.authority')} value={authority} onChangeText={setAuthority} />
         <LabeledInput label={t('documents.country')} value={country} onChangeText={setCountry} />
         <LabeledInput label={t('documents.notes')} value={notes} onChangeText={setNotes} multiline />
         {initial ? <DocumentFilesSection documentId={initial.id} /> : null}
-        <Button label={t('common.save')} onPress={submit} />
+        {initial ? (
+          <FieldRow label={t('documents.expiryDate')} value={formatDate(initial.expiryDate)} />
+        ) : null}
+        <View style={styles.actions}>
+          <Button label={t('common.save')} onPress={submit} style={styles.flexBtn} />
+          {initial ? (
+            <Button
+              label={t('common.delete')}
+              onPress={confirmDelete}
+              variant="danger"
+              style={styles.flexBtn}
+            />
+          ) : null}
+        </View>
       </ScrollView>
     </View>
   );
@@ -184,5 +226,8 @@ function DocumentFilesSection({ documentId }: { documentId: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   form: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  statusRow: { alignItems: 'flex-start', marginBottom: Spacing.sm },
+  actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
+  flexBtn: { flex: 1 },
   fileRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 4 },
 });

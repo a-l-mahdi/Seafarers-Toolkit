@@ -12,6 +12,9 @@ const en = {
     today: 'Today',
     days: 'days',
     day: 'day',
+    year: 'Year',
+    month: 'Month',
+    dayOfMonth: 'Day',
     confirm: 'Confirm',
     confirmDelete: 'Are you sure you want to delete this item?',
     notSet: 'Not set',
@@ -101,9 +104,14 @@ const en = {
     status: {
       valid: 'Valid',
       expiring_soon: 'Expiring Soon',
+      not_valid: 'Not Valid to Join',
       expired: 'Expired',
       no_expiry: 'No Expiry',
     },
+    warningThreshold: 'Renewal warning (days before expiry)',
+    validThreshold: 'Min. validity to join (days)',
+    thresholdHint:
+      'Company rule: a document must keep at least 180 days (6 months) of validity to join a vessel. Set the warning ~30 days before that (210).',
     errors: {
       expiryBeforeIssue: 'Expiry date must be after issue date',
       nameRequired: 'Document name is required',

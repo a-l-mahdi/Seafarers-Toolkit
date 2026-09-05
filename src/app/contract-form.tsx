@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/primitives';
 import { HeaderBar, LabeledInput, Select } from '@/components/ui/form';
+import { DatePickerField } from '@/components/ui/date-picker';
 import { useContracts, useRanks, useSaveContract, useVessels } from '@/hooks/queries';
 import { expectedSignOff, type DurationInput } from '@/domain/contract';
 import { isISODate } from '@/utils/date';
@@ -96,12 +97,7 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
           options={(ranks ?? []).map((r) => ({ id: r.id, label: r.name }))}
           onSelect={setRankId}
         />
-        <LabeledInput
-          label={`${t('contracts.joinDate')} (YYYY-MM-DD)`}
-          value={joinDate}
-          onChangeText={setJoinDate}
-          placeholder="2026-09-01"
-        />
+        <DatePickerField label={t('contracts.joinDate')} value={joinDate} onChange={setJoinDate} />
         <Select
           label={t('contracts.duration')}
           value={mode}
@@ -119,11 +115,10 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
           <LabeledInput label={t('contracts.modes.months')} value={months} onChangeText={setMonths} keyboardType="numeric" />
         ) : null}
         {mode === 'custom_date' ? (
-          <LabeledInput
-            label={`${t('contracts.expectedSignOff')} (YYYY-MM-DD)`}
+          <DatePickerField
+            label={t('contracts.expectedSignOff')}
             value={customEndDate}
-            onChangeText={setCustomEndDate}
-            placeholder="2027-03-01"
+            onChange={setCustomEndDate}
           />
         ) : null}
         {preview ? (
@@ -132,11 +127,10 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
             <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{preview}</Text>
           </View>
         ) : null}
-        <LabeledInput
-          label={`${t('contracts.actualSignOff')} (YYYY-MM-DD)`}
+        <DatePickerField
+          label={t('contracts.actualSignOff')}
           value={actualSignOff}
-          onChangeText={setActualSignOff}
-          placeholder="—"
+          onChange={setActualSignOff}
         />
         <LabeledInput label={t('contracts.notes')} value={notes} onChangeText={setNotes} multiline />
         {errors.map((err, i) => (
@@ -155,3 +149,4 @@ const styles = StyleSheet.create({
   form: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   preview: { marginBottom: Spacing.md },
 });
+

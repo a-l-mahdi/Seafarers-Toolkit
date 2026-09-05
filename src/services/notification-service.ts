@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
+import { SchedulableTriggerInputTypes } from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { DocumentListRow } from '@/database/repositories';
-import { SchedulableTriggerInputTypes } from 'expo-notifications';
 import { diffInDays, isoNow, todayISO } from '@/utils/date';
 import * as NotificationsRepo from '@/database/repositories/notifications-repository';
 import { getNotificationPrefs } from '@/database/repositories/ranks-repository';
@@ -54,39 +54,63 @@ async function scheduleOsNotification(
  * Rebuilds notification-center entries and schedules OS notifications.
  * Dedup is enforced by the DB unique index (event_type, event_id, notification_type),
  * so repeated syncs never duplicate notifications.
+ * Each document carries its own thresholds:
+ *  - warningThresholdDays: renewal reminder (e.g. 210 = 1 month before the 6-month rule)
+ *  - validThresholdDays: the day the document stops being valid to join (e.g. 180)
  */
 export async function syncNotifications(documents: DocumentListRow[]): Promise<void> {
   const prefs = await getNotificationPrefs();
+  if (!prefs.documentExpiry) return;
   const today = todayISO();
 
   for (const doc of documents) {
     if (!doc.expiryDate) continue;
-    if (!prefs.documentExpiry) continue;
+    const daysLeft = diffInDays(today, doc.expiryDate);
 
-    for (const threshold of prefs.thresholds) {
-      const daysLeft = diffInDays(today, doc.expiryDate);
-      if (daysLeft < 0 || daysLeft > threshold) continue;
-      if (daysLeft !== threshold && doc.status !== 'expired') continue;
-
-      const inserted = await NotificationsRepo.upsertNotification({
-        eventType: 'document',
-        eventId: doc.id,
-        notificationType: `expiry_${threshold}d`,
-        title: doc.name,
-        body:
-          daysLeft <= 0
-            ? `${doc.name} has expired.`
-            : `${doc.name} expires in ${daysLeft} days.`,
-        scheduledAt: null,
-        sentAt: isoNow(),
-      });
-      if (inserted && daysLeft > 0) {
-        await scheduleOsNotification(
-          doc.name,
-          `${doc.name} expires in ${daysLeft} days.`,
-          new Date(`${doc.expiryDate}T09:00:00`)
-        );
-      }
+    if (daysLeft <= 0) {
+      await pushNotification(doc, 'expired', `${doc.name} has expired.`, null);
+      continue;
     }
+
+    const warningThreshold = doc.warningThresholdDays ?? 30;
+    const validThreshold = doc.validThresholdDays ?? 0;
+
+    if (daysLeft === warningThreshold) {
+      await pushNotification(
+        doc,
+        `expiry_${warningThreshold}d`,
+        `${doc.name} expires in ${daysLeft} days — renew now.`,
+        new Date(`${doc.expiryDate}T09:00:00`)
+      );
+    }
+
+    if (validThreshold > 0 && daysLeft === validThreshold) {
+      await pushNotification(
+        doc,
+        `validity_${validThreshold}d`,
+        `${doc.name} is below the ${validThreshold}-day join validity in ${daysLeft} days.`,
+        new Date(`${doc.expiryDate}T09:00:00`)
+      );
+    }
+  }
+}
+
+async function pushNotification(
+  doc: DocumentListRow,
+  type: string,
+  body: string,
+  fireDate: Date | null
+): Promise<void> {
+  const inserted = await NotificationsRepo.upsertNotification({
+    eventType: 'document',
+    eventId: doc.id,
+    notificationType: type,
+    title: doc.name,
+    body,
+    scheduledAt: null,
+    sentAt: isoNow(),
+  });
+  if (inserted && fireDate) {
+    await scheduleOsNotification(doc.name, body, fireDate);
   }
 }

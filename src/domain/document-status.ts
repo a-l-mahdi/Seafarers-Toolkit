@@ -2,16 +2,26 @@ import type { DocumentStatusType } from '@/types/domain';
 import { isBefore, todayISO } from '@/utils/date';
 
 export const DEFAULT_EXPIRY_WARNING_DAYS = 30;
+/** Company rule: a document with less than this validity does not allow joining a vessel. */
+export const DEFAULT_VALIDITY_DAYS = 180;
+
+export interface DocumentStatusInput {
+  expiryDate: string | null;
+  warningThresholdDays?: number | null;
+  validThresholdDays?: number | null;
+}
 
 export function documentStatus(
-  expiryDate: string | null,
-  now: Date = new Date(),
-  warningDays: number = DEFAULT_EXPIRY_WARNING_DAYS
+  input: DocumentStatusInput,
+  now: Date = new Date()
 ): DocumentStatusType {
-  if (!expiryDate) return 'no_expiry';
+  if (!input.expiryDate) return 'no_expiry';
   const today = todayISO(now);
-  if (isBefore(expiryDate, today)) return 'expired';
-  const daysLeft = diff(expiryDate, today);
+  if (isBefore(input.expiryDate, today)) return 'expired';
+  const daysLeft = daysUntilExpiry(input.expiryDate, now);
+  const validDays = input.validThresholdDays ?? 0;
+  const warningDays = input.warningThresholdDays ?? DEFAULT_EXPIRY_WARNING_DAYS;
+  if (validDays > 0 && daysLeft < validDays) return 'not_valid';
   return daysLeft <= warningDays ? 'expiring_soon' : 'valid';
 }
 

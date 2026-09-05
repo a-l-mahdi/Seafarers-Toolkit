@@ -1,5 +1,12 @@
-import { useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '@/store/settings-store';
 import {
@@ -14,6 +21,9 @@ import {
 } from '@/utils/date';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Spacing } from '@/constants/theme';
+
+const ITEM_H = 40;
+const VISIBLE_ITEMS = 5;
 
 interface PickerState {
   year: number;
@@ -98,38 +108,46 @@ export function DatePickerModal({
   const colors = useTheme();
   const isJalali = calendar === 'jalali';
 
-  const [state, setState] = useState<PickerState | null>(() => {
-    if (isISODate(initialIso)) {
-      if (isJalali) {
-        const j = gregorianToJalali(initialIso).split('/');
-        return { year: +j[0], month: +j[1], day: +j[2] };
-      }
-      const [y, m, d] = initialIso.split('-').map(Number);
-      return { year: y, month: m, day: d };
-    }
-    const today = todayISO();
+  const [state, setState] = useState<PickerState>(() => {
+    let base = isISODate(initialIso) ? initialIso : todayISO();
     if (isJalali) {
-      const j = gregorianToJalali(today).split('/');
+      const j = gregorianToJalali(base).split('/');
       return { year: +j[0], month: +j[1], day: +j[2] };
     }
-    const [y, m, d] = today.split('-').map(Number);
+    const [y, m, d] = base.split('-').map(Number);
     return { year: y, month: m, day: d };
   });
 
-  if (!state) return null;
+  const years: { value: number; label: string }[] = [];
+  const yStart = isJalali ? 1300 : 1930;
+  const yEnd = isJalali ? 1500 : 2130;
+  for (let y = yStart; y <= yEnd; y += 1) years.push({ value: y, label: String(y) });
 
-  const years: number[] = [];
-  const startYear = state.year - 30;
-  for (let y = startYear; y < startYear + 80; y += 1) years.push(y);
-  const months = isJalali
-    ? JALALI_MONTHS.map((name, i) => ({ value: i + 1, label: name }))
-    : GREGORIAN_MONTHS.map((name, i) => ({ value: i + 1, label: name }));
+  const months = useMemo(
+    () =>
+      isJalali
+        ? JALALI_MONTHS.map((name, i) => ({ value: i + 1, label: name }))
+        : GREGORIAN_MONTHS.map((name, i) => ({ value: i + 1, label: name })),
+    [isJalali]
+  );
+
   const maxDay = isJalali
     ? jalaliDaysInMonth(state.year, state.month)
     : daysInMonth(state.year, state.month);
-  const days = Array.from({ length: maxDay }, (_, i) => i + 1);
+  const days: { value: number; label: string }[] = [];
+  for (let d = 1; d <= maxDay; d += 1) days.push({ value: d, label: String(d) });
+
+  const setYear = (year: number) => setState((s) => (s ? { ...s, year } : s));
+  const setMonth = (month: number) =>
+    setState((s) => {
+      if (!s) return s;
+      const cap = isJalali ? jalaliDaysInMonth(s.year, month) : daysInMonth(s.year, month);
+      return { ...s, month, day: Math.min(s.day, cap) };
+    });
+  const setDay = (day: number) => setState((s) => (s ? { ...s, day } : s));
 
   const confirm = () => {
+    if (!state) return;
     const iso = isJalali
       ? jalaliToGregorianExact(state.year, state.month, state.day)
       : `${state.year}-${String(state.month).padStart(2, '0')}-${String(state.day).padStart(2, '0')}`;
@@ -141,18 +159,36 @@ export function DatePickerModal({
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={[styles.sheet, { backgroundColor: colors.surface }]} onPress={() => undefined}>
           <Text style={[styles.title, { color: colors.text }]}>
-            {t('settings.calendarType')}: {isJalali ? t('settings.jalali') : t('settings.gregorian')}
+            {isJalali ? t('settings.jalali') : t('settings.gregorian')}
           </Text>
           <View style={styles.row}>
-            <WheelColumn label={isJalali ? t('common.year') : 'Year'} options={years.map((y) => ({ value: y, label: String(y) }))} selected={state.year} onSelect={(year) => setState({ ...state, year })} />
-            <WheelColumn label={isJalali ? t('common.month') : 'Month'} options={months} selected={state.month} onSelect={(month) => setState({ ...state, month, day: Math.min(state.day, isJalali ? jalaliDaysInMonth(state.year, month) : daysInMonth(state.year, month)) })} />
-            <WheelColumn label={isJalali ? t('common.dayOfMonth') : 'Day'} options={days.map((d) => ({ value: d, label: String(d) }))} selected={state.day} onSelect={(day) => setState({ ...state, day })} />
+            <WheelColumn
+              label={isJalali ? t('common.year') : 'Year'}
+              options={years}
+              selected={state.year}
+              onSelect={setYear}
+            />
+            <WheelColumn
+              label={isJalali ? t('common.month') : 'Month'}
+              options={months}
+              selected={state.month}
+              onSelect={setMonth}
+            />
+            <WheelColumn
+              label={isJalali ? t('common.dayOfMonth') : 'Day'}
+              options={days}
+              selected={state.day}
+              onSelect={setDay}
+            />
           </View>
           <View style={styles.actions}>
             <Pressable onPress={onClear} style={[styles.actionBtn, { backgroundColor: colors.surfaceMuted }]}>
               <Text style={{ color: colors.danger }}>{t('common.cancel')}</Text>
             </Pressable>
-            <Pressable onPress={() => { const today = todayISO(); onConfirm(today); }} style={[styles.actionBtn, { backgroundColor: colors.surfaceMuted }]}>
+            <Pressable
+              onPress={() => onConfirm(todayISO())}
+              style={[styles.actionBtn, { backgroundColor: colors.surfaceMuted }]}
+            >
               <Text style={{ color: colors.primary }}>{t('common.today')}</Text>
             </Pressable>
             <Pressable onPress={confirm} style={[styles.actionBtn, { backgroundColor: colors.primary }]}>
@@ -177,19 +213,58 @@ function WheelColumn({
   onSelect: (value: number) => void;
 }) {
   const colors = useTheme();
+  const scrollRef = useRef<ScrollView>(null);
+  const index = Math.max(
+    options.findIndex((o) => o.value === selected),
+    0
+  );
+
+  // Keep the selected item centered in the wheel.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: index * ITEM_H, animated: false });
+  }, [index, options.length]);
+
   return (
     <View style={styles.column}>
       <Text style={[styles.pickerLabel, { color: colors.textMuted }]}>{label}</Text>
       <View style={[styles.wheel, { borderColor: colors.border }]}>
-        {options.map((o) => (
-          <Pressable
-            key={o.value}
-            onPress={() => onSelect(o.value)}
-            style={[styles.wheelItem, o.value === selected && { backgroundColor: colors.primaryMuted, borderRadius: Radius.sm }]}
-          >
-            <Text style={{ color: o.value === selected ? colors.primary : colors.text, fontSize: 14 }}>{o.label}</Text>
-          </Pressable>
-        ))}
+        <ScrollView
+          ref={scrollRef}
+          style={{ height: VISIBLE_ITEMS * ITEM_H }}
+          contentContainerStyle={{
+            paddingVertical: ((VISIBLE_ITEMS - 1) / 2) * ITEM_H,
+          }}
+          snapToInterval={ITEM_H}
+          decelerationRate="fast"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+        >
+          {options.map((o) => {
+            const active = o.value === selected;
+            return (
+              <Pressable
+                key={o.value}
+                onPress={() => onSelect(o.value)}
+                style={[
+                  styles.wheelItem,
+                  { height: ITEM_H },
+                  active && { backgroundColor: colors.primaryMuted, borderRadius: Radius.sm },
+                ]}
+              >
+                <Text
+                  style={{
+                    color: active ? colors.primary : colors.text,
+                    fontSize: 15,
+                    fontWeight: active ? '700' : '400',
+                  }}
+                  numberOfLines={1}
+                >
+                  {o.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
     </View>
   );
@@ -208,13 +283,13 @@ const styles = StyleSheet.create({
   },
   error: { fontSize: 12, marginTop: 4 },
   backdrop: { flex: 1, backgroundColor: '#00000080', justifyContent: 'center', padding: Spacing.xl },
-  sheet: { borderRadius: Radius.lg, padding: Spacing.lg },
+  sheet: { borderRadius: Radius.lg, padding: Spacing.lg, overflow: 'hidden' },
   title: { fontSize: 15, fontWeight: '700', marginBottom: Spacing.md, textAlign: 'center' },
   row: { flexDirection: 'row', gap: Spacing.md, justifyContent: 'center' },
   column: { alignItems: 'center', flex: 1 },
   pickerLabel: { fontSize: 12, marginBottom: 4 },
-  wheel: { borderWidth: 1, borderRadius: Radius.md, maxHeight: 200 },
-  wheelItem: { paddingHorizontal: Spacing.md, paddingVertical: 6, alignItems: 'center' },
+  wheel: { borderWidth: 1, borderRadius: Radius.md, overflow: 'hidden', width: '100%' },
+  wheelItem: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: Spacing.xs },
   actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.lg },
   actionBtn: { flex: 1, paddingVertical: Spacing.sm + 2, borderRadius: Radius.md, alignItems: 'center' },
 });

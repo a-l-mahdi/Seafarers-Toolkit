@@ -35,13 +35,21 @@ export async function importPickedFile(
   documentId: string,
   picked: { uri: string; name: string; mimeType: string | null; size: number | null }
 ): Promise<string> {
-  const dir = await ensureDocumentsDir();
-  const docDir = `${dir}${documentId}/`;
-  const info = await FileSystem.getInfoAsync(docDir);
-  if (!info.exists) await FileSystem.makeDirectoryAsync(docDir, { intermediates: true });
-  const extension = picked.name.includes('.') ? picked.name.slice(picked.name.lastIndexOf('.')) : '';
-  const dest = `${docDir}${Date.now()}_${Math.floor(Math.random() * 1e6)}${extension}`;
-  await FileSystem.copyAsync({ from: picked.uri, to: dest });
+  return importUriFile(`documents/${documentId}`, picked.uri, picked.name);
+}
+
+/** Copies any local file (photo, PDF…) into a namespaced app folder. */
+export async function importUriFile(
+  folder: string,
+  uri: string,
+  fileName: string
+): Promise<string> {
+  const dir = `${FileSystem.documentDirectory ?? ''}${folder}/`;
+  const info = await FileSystem.getInfoAsync(dir);
+  if (!info.exists) await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+  const extension = fileName.includes('.') ? fileName.slice(fileName.lastIndexOf('.')) : '';
+  const dest = `${dir}${Date.now()}_${Math.floor(Math.random() * 1e6)}${extension}`;
+  await FileSystem.copyAsync({ from: uri, to: dest });
   return dest;
 }
 

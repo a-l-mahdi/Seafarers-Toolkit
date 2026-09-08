@@ -38,6 +38,7 @@ export default function DocumentScanScreen() {
     setError(null);
     try {
       // On-device OCR — no internet involved.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const TextRecognition = require('@react-native-ml-kit/text-recognition').default;
       const result = await TextRecognition.recognize(uri);
       const parsed = parseDocumentText(result?.text ?? '');

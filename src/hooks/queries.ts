@@ -17,6 +17,7 @@ import * as VesselsRepo from '@/database/repositories/vessels-repository';
 import * as SeaTimeRepo from '@/database/repositories/sea-time-repository';
 import * as DocumentsRepo from '@/database/repositories/documents-repository';
 import * as NotificationsRepo from '@/database/repositories/notifications-repository';
+import * as TripFilesRepo from '@/database/repositories/trip-files-repository';
 import type { ContractListRow, DocumentListRow } from '@/database/repositories';
 
 export const queryKeys = {
@@ -32,6 +33,7 @@ export const queryKeys = {
   seaTimeRecords: ['sea-time-records'] as const,
   leaveSettings: ['leave-settings'] as const,
   notifications: ['notifications'] as const,
+  tripFiles: (key: string) => ['trip-files', key] as const,
 };
 
 export function useProfile() {
@@ -291,6 +293,40 @@ export function useDismissNotification() {
   return useMutation({
     mutationFn: (id: string) => NotificationsRepo.dismiss(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
+  });
+}
+
+export function useTripFiles(filter: { contractId?: string | null; seaTimeId?: string | null; kind?: TripFilesRepo.TripFileKind }) {
+  const key = `${filter.contractId ?? ''}|${filter.seaTimeId ?? ''}|${filter.kind ?? ''}`;
+  return useQuery({
+    queryKey: queryKeys.tripFiles(key),
+    queryFn: () =>
+      TripFilesRepo.listTripFiles({
+        contractId: filter.contractId ?? undefined,
+        seaTimeId: filter.seaTimeId ?? undefined,
+        kind: filter.kind,
+      }),
+  });
+}
+
+export function useAddTripFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: Omit<TripFilesRepo.TripFile, 'id' | 'createdAt'>) =>
+      TripFilesRepo.saveTripFile(file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['trip-files'] });
+    },
+  });
+}
+
+export function useDeleteTripFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => TripFilesRepo.deleteTripFile(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['trip-files'] });
+    },
   });
 }
 

@@ -1,24 +1,24 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { Card } from '@/components/ui/primitives';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
+
+const ITEMS: { href: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { href: '/sea-time', icon: 'water' },
+  { href: '/vessels', icon: 'boat' },
+  { href: '/calendar', icon: 'calendar' },
+  { href: '/reports', icon: 'stats-chart' },
+  { href: '/notifications', icon: 'notifications' },
+  { href: '/profile-form', icon: 'person' },
+  { href: '/ranks', icon: 'ribbon' },
+  { href: '/settings', icon: 'settings' },
+];
 
 export default function MoreScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
-
-  const items: { href: string; label: string }[] = [
-    { href: '/sea-time', label: t('more.seaTime') },
-    { href: '/vessels', label: t('more.vessels') },
-    { href: '/calendar', label: t('more.calendar') },
-    { href: '/reports', label: t('more.reports') },
-    { href: '/notifications', label: t('more.notifications') },
-    { href: '/profile-form', label: t('more.profile') },
-    { href: '/ranks', label: t('more.ranks') },
-    { href: '/settings', label: t('more.settings') },
-  ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -30,32 +30,78 @@ export default function MoreScreen() {
           headerStyle: { backgroundColor: colors.background },
         }}
       />
-      <Card>
-        {items.map((item, index) => (
+      <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        {ITEMS.map((item, index) => (
           <Link key={item.href} href={item.href as never} asChild>
-            <Text
+            <Pressable
               style={[
                 styles.item,
-                { color: colors.text, borderBottomColor: colors.border },
-                index === items.length - 1 && styles.last,
+                { borderBottomColor: colors.border },
+                index === ITEMS.length - 1 && styles.lastItem,
               ]}
             >
-              {item.label}
-              <Text style={{ color: colors.textMuted }}>{'  ›'}</Text>
-            </Text>
+              <View style={styles.row}>
+                <View style={[styles.iconWrap, { backgroundColor: colors.primaryMuted }]}>
+                  <Ionicons name={item.icon} size={22} color={colors.primary} />
+                </View>
+                <Text style={[styles.label, { color: colors.text }]}>{t(toLabelKey(item.href))}</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </View>
+            </Pressable>
           </Link>
         ))}
-      </Card>
+      </View>
     </View>
   );
 }
 
+function toLabelKey(href: string): string {
+  switch (href) {
+    case '/sea-time':
+      return 'more.seaTime';
+    case '/vessels':
+      return 'more.vessels';
+    case '/calendar':
+      return 'more.calendar';
+    case '/reports':
+      return 'more.reports';
+    case '/notifications':
+      return 'more.notifications';
+    case '/profile-form':
+      return 'more.profile';
+    case '/ranks':
+      return 'more.ranks';
+    case '/settings':
+      return 'more.settings';
+    default:
+      return 'more.title';
+  }
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: Spacing.lg },
+  container: { flex: 1, padding: Spacing.lg, paddingTop: Spacing.md },
+  list: {
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
   item: {
-    fontSize: 16,
-    paddingVertical: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  last: { borderBottomWidth: 0 },
+  lastItem: { borderBottomWidth: 0 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: 18,
+    paddingHorizontal: Spacing.lg,
+  },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  label: { fontSize: 16, fontWeight: '500', flex: 1 },
 });

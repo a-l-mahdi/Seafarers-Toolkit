@@ -101,6 +101,18 @@ CREATE TABLE IF NOT EXISTS document_files (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS trip_files (
+  id TEXT PRIMARY KEY,
+  contract_id TEXT REFERENCES contracts(id) ON DELETE CASCADE,
+  sea_time_id TEXT REFERENCES sea_time_records(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'contract',
+  local_path TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  mime_type TEXT,
+  size INTEGER,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -150,6 +162,22 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   }
   if (!names.has('valid_threshold_days')) {
     await db.execAsync('ALTER TABLE documents ADD COLUMN valid_threshold_days INTEGER');
+  }
+  const tables = await db.getAllAsync<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'trip_files'"
+  );
+  if (tables.length === 0) {
+    await db.execAsync(`CREATE TABLE IF NOT EXISTS trip_files (
+      id TEXT PRIMARY KEY,
+      contract_id TEXT REFERENCES contracts(id) ON DELETE CASCADE,
+      sea_time_id TEXT REFERENCES sea_time_records(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL DEFAULT 'contract',
+      local_path TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT,
+      size INTEGER,
+      created_at TEXT NOT NULL
+    );`);
   }
 }
 

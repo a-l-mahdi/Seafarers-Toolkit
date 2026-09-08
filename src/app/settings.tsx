@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { I18nManager, ScrollView, StyleSheet, Text } from 'react-native';
+import { Alert, I18nManager, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card } from '@/components/ui/primitives';
@@ -10,6 +10,7 @@ import { changeLocale, isRTL } from '@/i18n';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
 import * as Updates from 'expo-updates';
+import { createBackup, restoreBackup } from '@/services/backup';
 import type { LeaveSettings } from '@/types/domain';
 
 export default function SettingsScreen() {
@@ -79,7 +80,64 @@ export default function SettingsScreen() {
       </Card>
 
       <LeavePatternCard />
+      <BackupCard />
     </ScrollView>
+  );
+}
+
+function BackupCard() {
+  const { t } = useTranslation();
+  const colors = useTheme();
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const doBackup = async () => {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const { count } = await createBackup();
+      setStatus(t('settings.backupDone', { count }));
+    } catch {
+      setStatus(t('settings.backupFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doRestore = () => {
+    Alert.alert(t('settings.restore'), t('settings.restoreConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.confirm'),
+        style: 'destructive',
+        onPress: async () => {
+          setBusy(true);
+          setStatus(null);
+          try {
+            const { count, files } = await restoreBackup();
+            setStatus(t('settings.restoreDone', { count, files }));
+          } catch {
+            setStatus(t('settings.restoreFailed'));
+          } finally {
+            setBusy(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  return (
+    <Card>
+      <Text style={[styles.title, { color: colors.text }]}>{t('settings.backupTitle')}</Text>
+      <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: Spacing.md }}>
+        {t('settings.backupHint')}
+      </Text>
+      <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+        <Button label={t('settings.backup')} onPress={() => void doBackup()} disabled={busy} style={{ flex: 1 }} />
+        <Button label={t('settings.restore')} onPress={doRestore} variant="secondary" disabled={busy} style={{ flex: 1 }} />
+      </View>
+      {status ? <Text style={{ color: colors.success, fontSize: 13, marginTop: Spacing.sm }}>{status}</Text> : null}
+    </Card>
   );
 }
 

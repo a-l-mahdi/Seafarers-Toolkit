@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/primitives';
 import { HeaderBar, LabeledInput, Select } from '@/components/ui/form';
 import { DatePickerField } from '@/components/ui/date-picker';
+import { ContractFilesSection } from '@/components/contract-files';
 import { useContracts, useRanks, useSaveContract, useVessels } from '@/hooks/queries';
 import { expectedSignOff, type DurationInput } from '@/domain/contract';
 import { isISODate } from '@/utils/date';
@@ -133,6 +134,7 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
           onChange={setActualSignOff}
         />
         <LabeledInput label={t('contracts.notes')} value={notes} onChangeText={setNotes} multiline />
+        {initial ? <ContractFilesSection contractId={initial.id} /> : null}
         {errors.map((err, i) => (
           <Text key={i} style={{ color: colors.danger, fontSize: 13 }}>
             {err}

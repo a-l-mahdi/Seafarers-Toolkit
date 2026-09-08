@@ -43,7 +43,8 @@
           "cameraPermission": "Allows taking photos of your documents for offline scanning.",
           "photosPermission": "Allows choosing document photos from your gallery."
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

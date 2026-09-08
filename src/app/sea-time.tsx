@@ -1,5 +1,5 @@
-import { Alert, FlatList, StyleSheet, Text, View } from 'react-native';
-import { Link, Stack } from 'expo-router';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Link, Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Card, EmptyState, FieldRow } from '@/components/ui/primitives';
 import { useDeleteSeaTimeRecord, useProfile, useRanks, useSeaTimeRecords, useSeaTimeSummary } from '@/hooks/queries';
@@ -11,6 +11,7 @@ export default function SeaTimeScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
   const formatDate = useFormattedDate();
+  const router = useRouter();
   const { data: summary } = useSeaTimeSummary();
   const { data: records } = useSeaTimeRecords();
   const { data: ranks } = useRanks();
@@ -73,7 +74,14 @@ export default function SeaTimeScreen() {
         data={records ?? []}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Pressable
+            style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => {
+              if (item.contractId) {
+                router.push(`/trip-files?contractId=${item.contractId}`);
+              }
+            }}
+          >
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: colors.text, fontWeight: '600' }}>
                 {rankName(item.rankId)} · {item.days} {t('common.days')}
@@ -84,10 +92,14 @@ export default function SeaTimeScreen() {
                 {item.verified ? ` · ${t('seaTime.verified')}` : ''}
               </Text>
             </View>
-            <Text style={{ color: colors.danger }} onPress={() => confirmDelete(item.id)}>
-              ✕
-            </Text>
-          </View>
+            {item.contractId ? (
+              <Text style={{ color: colors.primary, fontSize: 13 }}>{t('tripFiles.open')}</Text>
+            ) : (
+              <Text style={{ color: colors.danger }} onPress={() => confirmDelete(item.id)}>
+                ✕
+              </Text>
+            )}
+          </Pressable>
         )}
         ListEmptyComponent={<EmptyState title={t('seaTime.noRecords')} />}
       />

@@ -1,4 +1,4 @@
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge, EmptyState } from '@/components/ui/primitives';
@@ -30,9 +30,14 @@ export default function DocumentsScreen() {
           headerTintColor: colors.text,
           headerStyle: { backgroundColor: colors.background },
           headerRight: () => (
-            <Link href="/document-form" style={{ color: colors.primary, fontWeight: '600' }}>
-              + {t('common.add')}
-            </Link>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <Link href="/document-scan" style={{ color: colors.primary, fontWeight: '600' }}>
+                {t('documents.scan.title')}
+              </Link>
+              <Link href="/document-form" style={{ color: colors.primary, fontWeight: '600' }}>
+                + {t('common.add')}
+              </Link>
+            </View>
           ),
         }}
       />
@@ -53,7 +58,7 @@ function DocumentRow({ item }: { item: DocumentListRow }) {
   const formatDate = useFormattedDate();
   return (
     <Link href={`/document-form?id=${item.id}`} asChild>
-      <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Pressable style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.info}>
           <Text style={[styles.name, { color: colors.text }]}>{item.name}</Text>
           <Text style={[styles.meta, { color: colors.textMuted }]}>
@@ -62,7 +67,7 @@ function DocumentRow({ item }: { item: DocumentListRow }) {
           </Text>
         </View>
         <Badge label={t(`documents.status.${item.status}`)} tone={STATUS_TONE[item.status]} />
-      </View>
+      </Pressable>
     </Link>
   );
 }

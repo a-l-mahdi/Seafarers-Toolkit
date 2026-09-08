@@ -1,4 +1,4 @@
-import { Alert, FlatList, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge, EmptyState, ProgressBar } from '@/components/ui/primitives';
@@ -62,7 +62,7 @@ function ContractRow({ item, statusTone }: { item: ContractListRow; statusTone: 
 
   return (
     <Link href={`/contract-form?id=${item.id}`} asChild>
-      <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Pressable style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.headerRow}>
           <Text style={[styles.name, { color: colors.text }]}>{item.vesselName ?? '—'}</Text>
           <Badge label={t(`contracts.${item.status}`)} tone={statusTone[item.status]} />
@@ -84,7 +84,7 @@ function ContractRow({ item, statusTone }: { item: ContractListRow; statusTone: 
             </Text>
           </>
         ) : null}
-      </View>
+      </Pressable>
     </Link>
   );
 }

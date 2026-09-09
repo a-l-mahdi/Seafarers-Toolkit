@@ -1,4 +1,4 @@
-import { contractCountdown, expectedSignOff, validateContract } from '../contract';
+import { contractCountdown, contractProgressColor, expectedSignOff, lerpColor, validateContract } from '../contract';
 import { seaTimeForContract, sum } from '../sea-time';
 import type { Contract } from '@/types/domain';
 
@@ -69,5 +69,34 @@ describe('validateContract', () => {
     expect(validateContract({ joinDate: '2026-09-01', expectedSignOff: '2026-08-01' }).valid).toBe(false);
     expect(validateContract({ joinDate: '2026-09-01', expectedSignOff: '2026-09-01' }).valid).toBe(false);
     expect(validateContract({ joinDate: '2026-09-01', expectedSignOff: '2027-03-01' }).valid).toBe(true);
+  });
+});
+
+describe('contractProgressColor', () => {
+  const palette = { primary: '#0000ff', success: '#00ff00' };
+  const cd = (remainingDays: number, ended = false) => ({
+    totalDays: 180,
+    elapsedDays: 180 - remainingDays,
+    remainingDays,
+    progress: (180 - remainingDays) / 180,
+    ended,
+  });
+
+  it('stays primary while more than 20 days remain', () => {
+    expect(contractProgressColor(palette, cd(40))).toBe('#0000ff');
+  });
+
+  it('blends to teal halfway through the last 20 days', () => {
+    // remaining 10 → t = 0.5 → #008080
+    expect(contractProgressColor(palette, cd(10))).toBe('#008080');
+  });
+
+  it('is fully green once the contract ended', () => {
+    expect(contractProgressColor(palette, cd(0, true))).toBe('#00ff00');
+  });
+
+  it('lerps colors linearly', () => {
+    expect(lerpColor('#000000', '#ffffff', 0.5)).toBe('#808080');
+    expect(lerpColor('#204a80', '#204a80', 0.3)).toBe('#204a80');
   });
 });

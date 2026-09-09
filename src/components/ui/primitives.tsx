@@ -83,9 +83,25 @@ export function Badge({
   );
 }
 
-export function ProgressBar({ progress, tone }: { progress: number; tone?: 'success' | 'primary' }) {
+export function ProgressBar({
+  progress,
+  tone,
+  color,
+}: {
+  progress: number;
+  tone?: 'success' | 'primary' | 'warning' | 'danger';
+  color?: string;
+}) {
   const colors = useTheme();
   const clamped = Math.min(Math.max(progress, 0), 1);
+  const toneColor =
+    tone === 'success'
+      ? colors.success
+      : tone === 'warning'
+        ? colors.warning
+        : tone === 'danger'
+          ? colors.danger
+          : colors.primary;
   return (
     <View style={[styles.track, { backgroundColor: colors.surfaceMuted }]}>
       <View
@@ -93,7 +109,7 @@ export function ProgressBar({ progress, tone }: { progress: number; tone?: 'succ
           styles.fill,
           {
             width: `${Math.round(clamped * 100)}%`,
-            backgroundColor: tone === 'success' ? colors.success : colors.primary,
+            backgroundColor: color ?? toneColor,
           },
         ]}
       />

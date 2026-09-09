@@ -45,13 +45,26 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
 
   const contractId = initial?.id ?? null;
 
+  // Restore the exact stored duration when editing; without it the form would
+  // recompute the sign-off date from defaults and ignore duration changes.
+  const storedDuration: Partial<DurationInput> | null = (() => {
+    if (initial?.durationJson) {
+      try {
+        return JSON.parse(initial.durationJson) as Partial<DurationInput>;
+      } catch {
+        // fall through to legacy fallback
+      }
+    }
+    return initial ? { mode: 'custom_date', customEndDate: initial.expectedSignOff } : null;
+  })();
+
   const [vesselId, setVesselId] = useState<string | null>(initial?.vesselId ?? null);
   const [rankId, setRankId] = useState<string | null>(initial?.rankId || null);
   const [joinDate, setJoinDate] = useState(initial?.joinDate ?? '');
-  const [mode, setMode] = useState<DurationMode>('months');
-  const [days, setDays] = useState('180');
-  const [months, setMonths] = useState('6');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const [mode, setMode] = useState<DurationMode>(storedDuration?.mode ?? 'months');
+  const [days, setDays] = useState(String(storedDuration?.days ?? 180));
+  const [months, setMonths] = useState(String(storedDuration?.months ?? 6));
+  const [customEndDate, setCustomEndDate] = useState(storedDuration?.customEndDate ?? '');
   const [actualSignOff, setActualSignOff] = useState(initial?.actualSignOff ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [pending, setPending] = useState<DisplayFile[]>([]);
@@ -112,6 +125,12 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
         expectedSignOff: preview,
         actualSignOff: isISODate(actualSignOff) ? actualSignOff : null,
         durationDays: Math.round((Date.parse(preview) - Date.parse(joinDate)) / 86_400_000),
+        durationJson: JSON.stringify({
+          mode,
+          days: duration.days ?? null,
+          months: duration.months ?? null,
+          customEndDate: duration.customEndDate ?? null,
+        }),
         status: isISODate(actualSignOff) ? 'completed' : 'active',
         notes: notes.trim() || null,
       });

@@ -68,7 +68,10 @@ export default function ReportsScreen() {
         <Text style={[styles.title, { color: colors.text }]}>{t('reports.documentStatus')}</Text>
         <View style={styles.badges}>
           <Badge label={`${t('dashboard.valid')}: ${(documents ?? []).filter((d) => d.status === 'valid').length}`} tone="success" />
-          <Badge label={`${t('dashboard.expiringSoon')}: ${(documents ?? []).filter((d) => d.status === 'expiring_soon').length}`} tone="warning" />
+          <Badge
+            label={`${t('dashboard.expiringSoon')}: ${(documents ?? []).filter((d) => d.status === 'expiring_soon' || d.status === 'not_valid').length}`}
+            tone="warning"
+          />
           <Badge label={`${t('dashboard.expired')}: ${(documents ?? []).filter((d) => d.status === 'expired').length}`} tone="danger" />
         </View>
       </Card>

@@ -179,6 +179,13 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
       created_at TEXT NOT NULL
     );`);
   }
+  const contractCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(contracts)');
+  const contractNames = new Set(contractCols.map((c) => c.name));
+  if (!contractNames.has('duration_json')) {
+    // Stores the exact duration input (mode/days/months/custom date) so editing
+    // a contract keeps its duration instead of resetting it to form defaults.
+    await db.execAsync('ALTER TABLE contracts ADD COLUMN duration_json TEXT');
+  }
 }
 
 async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {

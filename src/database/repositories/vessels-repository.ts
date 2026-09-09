@@ -82,6 +82,7 @@ function mapContract(row: Record<string, unknown>): Contract {
     expectedSignOff: String(row.expected_sign_off),
     actualSignOff: (row.actual_sign_off as string) ?? null,
     durationDays: (row.duration_days as number) ?? null,
+    durationJson: (row.duration_json as string) ?? null,
     status: (row.status as Contract['status']) ?? 'planned',
     notes: (row.notes as string) ?? null,
     createdAt: String(row.created_at),
@@ -130,12 +131,13 @@ export async function saveContract(
     : null;
   await db.runAsync(
     `INSERT INTO contracts (id, vessel_id, rank_id, join_date, expected_sign_off, actual_sign_off,
-       duration_days, status, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       duration_days, duration_json, status, notes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        vessel_id = excluded.vessel_id, rank_id = excluded.rank_id, join_date = excluded.join_date,
        expected_sign_off = excluded.expected_sign_off, actual_sign_off = excluded.actual_sign_off,
-       duration_days = excluded.duration_days, status = excluded.status, notes = excluded.notes,
+       duration_days = excluded.duration_days, duration_json = excluded.duration_json,
+       status = excluded.status, notes = excluded.notes,
        updated_at = excluded.updated_at`,
     id,
     input.vesselId,
@@ -144,6 +146,7 @@ export async function saveContract(
     input.expectedSignOff,
     input.actualSignOff,
     input.durationDays,
+    input.durationJson ?? null,
     input.status,
     input.notes,
     existing?.created_at ?? now,

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge, Button, Card, EmptyState, FieldRow, ProgressBar } from '@/components/ui/primitives';
 import { useContracts, useDocuments, useLeaveSettings, useProfile, useRanks, useRequiredSeaTime, useSeaTimeSummary } from '@/hooks/queries';
 import { careerProgress, estimatedQualificationDate } from '@/domain/career';
-import { contractCountdown } from '@/domain/contract';
+import { contractCountdown, contractProgressColor } from '@/domain/contract';
 import { expectedReturnDate, daysUntilReturn } from '@/domain/leave';
 import { todayISO, diffInDays } from '@/utils/date';
 import { useFormattedDate } from '@/hooks/use-date-format';
@@ -43,6 +43,8 @@ export default function DashboardScreen() {
 
   const docStats = { valid: 0, expiring_soon: 0, not_valid: 0, expired: 0, no_expiry: 0 };
   for (const doc of documents ?? []) docStats[doc.status] += 1;
+  // Documents past the minimum departure validity count as near-expiry too.
+  const nearExpiry = docStats.expiring_soon + docStats.not_valid;
 
   const lastOffContract = contracts
     ?.filter((c) => c.actualSignOff)
@@ -57,7 +59,7 @@ export default function DashboardScreen() {
 
   const alerts: { tone: 'danger' | 'warning' | 'success'; text: string }[] = [];
   if (docStats.expired > 0) alerts.push({ tone: 'danger', text: `${docStats.expired} ${t('documents.status.expired')}` });
-  if (docStats.expiring_soon > 0) alerts.push({ tone: 'warning', text: `${docStats.expiring_soon} ${t('documents.status.expiring_soon')}` });
+  if (nearExpiry > 0) alerts.push({ tone: 'warning', text: `${nearExpiry} ${t('documents.status.expiring_soon')}` });
   if (progress.complete) alerts.push({ tone: 'success', text: t('career.complete') });
 
   const countdown = activeContract ? contractCountdown(activeContract) : null;
@@ -107,7 +109,7 @@ export default function DashboardScreen() {
             <FieldRow label={t('dashboard.joinDate')} value={formatDate(activeContract.joinDate)} />
             <FieldRow label={t('dashboard.signOff')} value={formatDate(activeContract.expectedSignOff)} />
             <FieldRow label={t('dashboard.remaining')} value={`${countdown.remainingDays} ${t('common.days')}`} />
-            <ProgressBar progress={countdown.progress} />
+            <ProgressBar progress={countdown.progress} color={contractProgressColor(colors, countdown)} />
           </>
         ) : (
           <EmptyState title={t('dashboard.noActiveContract')} />
@@ -126,7 +128,7 @@ export default function DashboardScreen() {
         <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('dashboard.documents')}</Text>
         <View style={styles.badges}>
           <Badge label={`${t('dashboard.valid')}: ${docStats.valid}`} tone="success" />
-          <Badge label={`${t('dashboard.expiringSoon')}: ${docStats.expiring_soon}`} tone="warning" />
+          <Badge label={`${t('dashboard.expiringSoon')}: ${nearExpiry}`} tone="warning" />
           <Badge label={`${t('dashboard.expired')}: ${docStats.expired}`} tone="danger" />
         </View>
       </Card>

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge, EmptyState, ProgressBar } from '@/components/ui/primitives';
 import { useContracts, useSignOffContract } from '@/hooks/queries';
 import { useFormattedDate } from '@/hooks/use-date-format';
-import { contractCountdown } from '@/domain/contract';
+import { contractCountdown, contractProgressColor } from '@/domain/contract';
 import { todayISO } from '@/utils/date';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Spacing } from '@/constants/theme';
@@ -72,7 +72,7 @@ function ContractRow({ item, statusTone }: { item: ContractListRow; statusTone: 
         </Text>
         {!item.actualSignOff ? (
           <>
-            <ProgressBar progress={countdown.progress} />
+            <ProgressBar progress={countdown.progress} color={contractProgressColor(colors, countdown)} />
             <Text style={[styles.meta, { color: colors.textMuted }]}>
               {t('dashboard.remaining')}: {countdown.remainingDays} {t('common.days')}
             </Text>

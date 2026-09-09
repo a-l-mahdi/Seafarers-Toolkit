@@ -96,6 +96,7 @@ const en = {
     type: 'Document Type',
     issueDate: 'Issue Date',
     expiryDate: 'Expiry Date',
+    daysLeft: 'days left',
     authority: 'Issuing Authority',
     country: 'Issuing Country',
     notes: 'Notes',

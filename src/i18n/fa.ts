@@ -98,6 +98,7 @@ const fa: Translation = {
     type: 'نوع مدرک',
     issueDate: 'تاریخ صدور',
     expiryDate: 'تاریخ انقضا',
+    daysLeft: 'روز مانده',
     authority: 'مرجع صادرکننده',
     country: 'کشور صادرکننده',
     notes: 'یادداشت',

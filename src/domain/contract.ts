@@ -38,6 +38,46 @@ export interface ContractCountdown {
   ended: boolean;
 }
 
+/** Days before the contract ends when the bar starts shifting from blue toward green. */
+export const CONTRACT_APPROACH_DAYS = 20;
+
+function hexToRgb(hex: string): [number, number, number] {
+  const clean = hex.replace('#', '');
+  const full =
+    clean.length === 3
+      ? clean
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : clean;
+  return [
+    parseInt(full.slice(0, 2), 16) || 0,
+    parseInt(full.slice(2, 4), 16) || 0,
+    parseInt(full.slice(4, 6), 16) || 0,
+  ];
+}
+
+/** Linear blend between two hex colors (t = 0 → a, t = 1 → b); passes through teal midway. */
+export function lerpColor(a: string, b: string, t: number): string {
+  const ca = hexToRgb(a);
+  const cb = hexToRgb(b);
+  const mix = ca.map((v, i) => Math.round(v + (cb[i] - v) * Math.min(Math.max(t, 0), 1)));
+  return `#${mix.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Contract bar color: blue while plenty of time remains, blends toward green
+ * over the last CONTRACT_APPROACH_DAYS days, fully green once the contract ends.
+ */
+export function contractProgressColor(
+  colors: { primary: string; success: string },
+  cd: ContractCountdown
+): string {
+  if (cd.ended) return colors.success;
+  if (cd.remainingDays >= CONTRACT_APPROACH_DAYS) return colors.primary;
+  return lerpColor(colors.primary, colors.success, 1 - cd.remainingDays / CONTRACT_APPROACH_DAYS);
+}
+
 export function contractCountdown(contract: Contract, now: Date = new Date()): ContractCountdown {
   const end = contract.actualSignOff ?? contract.expectedSignOff;
   const totalDays = diffInDays(contract.joinDate, end);

@@ -76,6 +76,8 @@ export interface Contract {
   expectedSignOff: string;
   actualSignOff: string | null;
   durationDays: number | null;
+  /** Serialized duration input (mode/days/months/custom date) so edits preserve the duration. */
+  durationJson?: string | null;
   status: ContractStatus;
   notes: string | null;
   createdAt: string;

@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Badge, Button, FieldRow } from '@/components/ui/primitives';
-import { HeaderBar, LabeledInput, Select } from '@/components/ui/form';
+import { Badge, Button, Card, FieldRow } from '@/components/ui/primitives';
+import { Checkbox, HeaderBar, LabeledInput, Select } from '@/components/ui/form';
 import { DatePickerField } from '@/components/ui/date-picker';
 import { FileGallery, type DisplayFile } from '@/components/file-gallery';
 import {
   useAddDocumentFile,
+  useCreateDocumentType,
   useDeleteDocumentFile,
   useDocumentFiles,
   useDocumentTypes,
@@ -22,6 +23,7 @@ import {
   removeImportedFile,
 } from '@/services/file-storage';
 import { capturePhoto, pickPhoto } from '@/services/image-capture';
+import { parseDocumentText } from '@/services/ocr';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { DEFAULT_VALIDITY_DAYS } from '@/domain/document-status';
 import { useTheme } from '@/hooks/use-theme';
@@ -32,7 +34,7 @@ import type { DocumentListRow } from '@/hooks/queries';
 const STATUS_TONE = {
   valid: 'success',
   expiring_soon: 'warning',
-  not_valid: 'danger',
+  not_valid: 'warning',
   expired: 'danger',
   no_expiry: 'muted',
 } as const;
@@ -59,6 +61,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   const insets = useSafeAreaInsets();
   const formatDate = useFormattedDate();
   const { data: types } = useDocumentTypes();
+  const createType = useCreateDocumentType();
   const save = useSaveDocument();
   const remove = useDeleteDocument();
   const addFile = useAddDocumentFile();
@@ -70,6 +73,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   const [typeId, setTypeId] = useState<string | null>(initial?.typeId ?? null);
   const [issueDate, setIssueDate] = useState(initial?.issueDate ?? '');
   const [expiryDate, setExpiryDate] = useState(initial?.expiryDate ?? '');
+  const [unlimited, setUnlimited] = useState(initial ? !initial.expiryDate : false);
   const [warningThreshold, setWarningThreshold] = useState(
     initial?.warningThresholdDays?.toString() ?? '210'
   );
@@ -79,11 +83,17 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   const [authority, setAuthority] = useState(initial?.issuingAuthority ?? '');
   const [country, setCountry] = useState(initial?.issuingCountry ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [newTypeName, setNewTypeName] = useState('');
   const [pending, setPending] = useState<DisplayFile[]>([]);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanFeedback, setScanFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  /** Adds an image/file either directly (saved doc) or as pending (new doc). */
+  /**
+   * Attaches an image/file to the document. For camera/gallery captures the
+   * image is also read with on-device OCR and matching fields are pre-filled.
+   */
   const handleAdd = async (source: 'camera' | 'gallery' | 'file') => {
     let uri: string | null = null;
     let fileName: string;
@@ -101,6 +111,38 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
       fileName = picked.name;
     }
     if (!uri) return;
+
+    if (source !== 'file') {
+      // On-device OCR — no internet involved.
+      setScanBusy(true);
+      setScanFeedback(null);
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const TextRecognition = require('@react-native-ml-kit/text-recognition').default;
+        const result = await TextRecognition.recognize(uri);
+        const parsed = parseDocumentText(result?.text ?? '');
+        let found = false;
+        if (parsed.documentNumber) {
+          setNumber(parsed.documentNumber);
+          found = true;
+        }
+        if (parsed.issueDate) {
+          setIssueDate(parsed.issueDate);
+          found = true;
+        }
+        if (parsed.expiryDate) {
+          setExpiryDate(parsed.expiryDate);
+          setUnlimited(false);
+          found = true;
+        }
+        setScanFeedback(found ? t('documents.scan.autoFilled') : t('documents.scan.nothingFound'));
+      } catch {
+        setScanFeedback(t('documents.scan.failed'));
+      } finally {
+        setScanBusy(false);
+      }
+    }
+
     if (documentId) {
       const localPath = await importUriFile(`documents/${documentId}`, uri, fileName);
       addFile.mutate({ documentId, localPath, fileName, mimeType: null, size: null });
@@ -109,12 +151,27 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
     }
   };
 
+  const selectType = (id: string) => {
+    setTypeId(id);
+    // Pre-fill the document name from the selected type; the user can still edit it.
+    const selected = (types ?? []).find((ty) => ty.id === id);
+    if (selected) setName(selected.name);
+  };
+
+  const ensureType = async () => {
+    const typeName = newTypeName.trim();
+    if (!typeName) return;
+    const created = await createType.mutateAsync(typeName);
+    selectType(created.id);
+    setNewTypeName('');
+  };
+
   const submit = async () => {
     if (!name.trim()) {
       setError(t('documents.errors.nameRequired'));
       return;
     }
-    if (issueDate && expiryDate && expiryDate <= issueDate) {
+    if (!unlimited && issueDate && expiryDate && expiryDate <= issueDate) {
       setError(t('documents.errors.expiryBeforeIssue'));
       return;
     }
@@ -126,7 +183,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
         number: number.trim() || null,
         typeId,
         issueDate: issueDate || null,
-        expiryDate: expiryDate || null,
+        expiryDate: unlimited ? null : expiryDate || null,
         issuingAuthority: authority.trim() || null,
         issuingCountry: country.trim() || null,
         warningThresholdDays: parseInt(warningThreshold, 10) || null,
@@ -177,16 +234,77 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
             <Badge label={t(`documents.status.${initial.status}`)} tone={STATUS_TONE[initial.status]} />
           </View>
         ) : null}
+
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            {t('documents.scan.attachTitle')}
+          </Text>
+          <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: Spacing.md }}>
+            {t('documents.scan.hint')}
+          </Text>
+          <View style={styles.scanActions}>
+            <Button label={t('documents.scan.camera')} onPress={() => void handleAdd('camera')} style={styles.flexBtn} />
+            <Button
+              label={t('documents.scan.gallery')}
+              onPress={() => void handleAdd('gallery')}
+              variant="secondary"
+              style={styles.flexBtn}
+            />
+          </View>
+          <Button label={t('documents.attachFile')} onPress={() => void handleAdd('file')} variant="secondary" />
+          {scanBusy ? (
+            <View style={styles.busy}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={{ color: colors.textMuted, marginTop: 8 }}>{t('documents.scan.reading')}</Text>
+            </View>
+          ) : null}
+          {scanFeedback ? (
+            <Text
+              style={{
+                color: scanFeedback === t('documents.scan.autoFilled') ? colors.success : colors.danger,
+                fontSize: 13,
+                marginTop: Spacing.sm,
+              }}
+            >
+              {scanFeedback}
+            </Text>
+          ) : null}
+        </Card>
+
         <LabeledInput label={t('documents.name')} value={name} onChangeText={setName} error={error} />
         <LabeledInput label={t('documents.number')} value={number} onChangeText={setNumber} />
         <Select
           label={t('documents.type')}
           value={typeId}
           options={(types ?? []).map((ty) => ({ id: ty.id, label: ty.name }))}
-          onSelect={setTypeId}
+          onSelect={selectType}
         />
+        <LabeledInput
+          label={t('documents.scan.newType')}
+          value={newTypeName}
+          onChangeText={setNewTypeName}
+          placeholder={t('documents.scan.newTypeHint')}
+        />
+        {newTypeName.trim() ? (
+          <Text
+            style={{ color: colors.primary, fontWeight: '600', marginTop: -12, marginBottom: Spacing.md }}
+            onPress={() => void ensureType()}
+          >
+            + {t('documents.scan.addType')} ({newTypeName.trim()})
+          </Text>
+        ) : null}
         <DatePickerField label={t('documents.issueDate')} value={issueDate} onChange={setIssueDate} />
-        <DatePickerField label={t('documents.expiryDate')} value={expiryDate} onChange={setExpiryDate} />
+        {unlimited ? null : (
+          <DatePickerField label={t('documents.expiryDate')} value={expiryDate} onChange={setExpiryDate} />
+        )}
+        <Checkbox
+          label={t('documents.unlimited')}
+          value={unlimited}
+          onChange={(v) => {
+            setUnlimited(v);
+            if (v) setExpiryDate('');
+          }}
+        />
         <LabeledInput
           label={t('documents.warningThreshold')}
           value={warningThreshold}
@@ -209,7 +327,6 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
           documentId={documentId}
           pending={pending}
           onRemovePending={(id) => setPending((p) => p.filter((f) => f.id !== id))}
-          onAdd={(source) => void handleAdd(source)}
         />
         {initial ? <FieldRow label={t('documents.expiryDate')} value={formatDate(initial.expiryDate)} /> : null}
         <View style={styles.actions}>
@@ -232,12 +349,10 @@ function DocumentFilesSection({
   documentId,
   pending,
   onRemovePending,
-  onAdd,
 }: {
   documentId: string | null;
   pending: DisplayFile[];
   onRemovePending: (id: string) => void;
-  onAdd: (source: 'camera' | 'gallery' | 'file') => void;
 }) {
   const { t } = useTranslation();
   const { data: savedFiles } = useDocumentFiles(documentId);
@@ -264,21 +379,7 @@ function DocumentFilesSection({
     <View style={styles.filesSection}>
       <FieldRow label={t('documents.files')} value={String(all.length)} />
       <FileGallery files={all} onRemove={(id) => removeFile(id)} />
-      <View style={styles.fileActions}>
-        <AddLink label={t('tripFiles.camera')} onPress={() => onAdd('camera')} />
-        <AddLink label={t('tripFiles.gallery')} onPress={() => onAdd('gallery')} />
-        <AddLink label={t('tripFiles.pdf')} onPress={() => onAdd('file')} />
-      </View>
     </View>
-  );
-}
-
-function AddLink({ label, onPress }: { label: string; onPress: () => void }) {
-  const colors = useTheme();
- return (
-    <Text style={{ color: colors.primary, fontWeight: '600' }} onPress={onPress}>
-      + {label}
-    </Text>
   );
 }
 
@@ -286,8 +387,10 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   form: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   statusRow: { alignItems: 'flex-start', marginBottom: Spacing.sm },
+  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
+  scanActions: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
+  busy: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: Spacing.md },
   actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
   flexBtn: { flex: 1 },
   filesSection: { marginTop: Spacing.sm, gap: Spacing.sm },
-  fileActions: { flexDirection: 'row', gap: Spacing.lg, flexWrap: 'wrap' },
 });

@@ -38,14 +38,9 @@ export default function DocumentsScreen() {
           headerTintColor: colors.text,
           headerStyle: { backgroundColor: colors.background },
           headerRight: () => (
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Link href="/document-scan" style={{ color: colors.primary, fontWeight: '600' }}>
-                {t('documents.scan.title')}
-              </Link>
-              <Link href="/document-form" style={{ color: colors.primary, fontWeight: '600' }}>
-                + {t('common.add')}
-              </Link>
-            </View>
+            <Link href="/document-form" style={{ color: colors.primary, fontWeight: '600' }}>
+              + {t('common.add')}
+            </Link>
           ),
         }}
       />

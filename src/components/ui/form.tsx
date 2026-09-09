@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Spacing } from '@/constants/theme';
@@ -111,6 +112,34 @@ export function Select({
   );
 }
 
+export function Checkbox({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  const colors = useTheme();
+  return (
+    <Pressable onPress={() => onChange(!value)} style={styles.checkbox} hitSlop={4}>
+      <View
+        style={[
+          styles.checkboxBox,
+          {
+            borderColor: value ? colors.primary : colors.border,
+            backgroundColor: value ? colors.primary : colors.surface,
+          },
+        ]}
+      >
+        {value ? <Ionicons name="checkmark" size={15} color="#FFFFFF" /> : null}
+      </View>
+      <Text style={{ color: colors.text, fontSize: 15 }}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export function HeaderBar({
   title,
   onBack,
@@ -171,4 +200,13 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 17, fontWeight: '700', flex: 1, textAlign: 'center' },
   back: { fontSize: 28, fontWeight: '600', width: 24 },
+  checkbox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginVertical: Spacing.sm },
+  checkboxBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

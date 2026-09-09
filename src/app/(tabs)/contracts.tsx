@@ -32,7 +32,7 @@ export default function ContractsScreen() {
           ),
         }}
       />
-      <FlatList
+      <FlatList nestedScrollEnabled
         contentContainerStyle={styles.list}
         data={contracts ?? []}
         keyExtractor={(item) => item.id}

@@ -94,7 +94,7 @@ export default function CalendarScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container} style={{ backgroundColor: colors.background }}>
+    <ScrollView nestedScrollEnabled contentContainerStyle={styles.container} style={{ backgroundColor: colors.background }}>
       <Stack.Screen
         options={{
           headerShown: true,

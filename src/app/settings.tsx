@@ -26,7 +26,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container} style={{ backgroundColor: colors.background }}>
+    <ScrollView nestedScrollEnabled contentContainerStyle={styles.container} style={{ backgroundColor: colors.background }}>
       <Stack.Screen
         options={{
           headerShown: true,

@@ -59,7 +59,7 @@ function ProfileForm({ initial }: { initial: Profile | null }) {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('profile.title')} onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={styles.form}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={styles.form}>
         <LabeledInput label={t('profile.firstName')} value={firstName} onChangeText={setFirstName} />
         <LabeledInput label={t('profile.lastName')} value={lastName} onChangeText={setLastName} />
         <DatePickerField label={t('profile.dateOfBirth')} value={dateOfBirth} onChange={setDateOfBirth} />

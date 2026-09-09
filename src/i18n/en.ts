@@ -16,6 +16,7 @@ const en = {
     month: 'Month',
     dayOfMonth: 'Day',
     confirm: 'Confirm',
+    share: 'Share',
     confirmDelete: 'Are you sure you want to delete this item?',
     notSet: 'Not set',
     details: 'Details',

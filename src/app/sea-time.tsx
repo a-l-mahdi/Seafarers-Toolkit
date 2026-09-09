@@ -42,7 +42,7 @@ export default function SeaTimeScreen() {
           ),
         }}
       />
-      <FlatList
+      <FlatList nestedScrollEnabled
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <>

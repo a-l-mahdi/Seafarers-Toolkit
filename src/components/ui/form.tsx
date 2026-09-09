@@ -85,7 +85,7 @@ export function Select({
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={[styles.modalBackdrop, { backgroundColor: '#00000080' }]} onPress={() => setOpen(false)}>
           <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
-            <FlatList
+            <FlatList nestedScrollEnabled
               data={options}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (

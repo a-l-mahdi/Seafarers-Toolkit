@@ -57,7 +57,7 @@ export default function SeaTimeFormScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('seaTime.addManual')} onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={styles.form}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={styles.form}>
         <Select
           label={t('seaTime.rank')}
           value={rankId}

@@ -67,7 +67,7 @@ function VesselForm({ initial }: { initial: Vessel | null }) {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('vessels.add')} onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={styles.form}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={styles.form}>
         <LabeledInput label={t('vessels.name')} value={name} onChangeText={setName} />
         <LabeledInput label={t('vessels.imo')} value={imo} onChangeText={setImo} keyboardType="numeric" placeholder="1234567" />
         <LabeledInput label={t('vessels.type')} value={type} onChangeText={setType} placeholder="Container Ship" />

@@ -22,7 +22,7 @@ export default function ReportsScreen() {
   const rankName = (id: string | null) => ranks?.find((r) => r.id === id)?.name ?? '—';
 
   return (
-    <ScrollView contentContainerStyle={styles.container} style={{ backgroundColor: colors.background }}>
+    <ScrollView nestedScrollEnabled contentContainerStyle={styles.container} style={{ backgroundColor: colors.background }}>
       <Stack.Screen
         options={{
           headerShown: true,

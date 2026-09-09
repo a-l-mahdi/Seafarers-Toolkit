@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge, Button, FieldRow } from '@/components/ui/primitives';
 import { HeaderBar, LabeledInput, Select } from '@/components/ui/form';
 import { DatePickerField } from '@/components/ui/date-picker';
+import { FileGallery, type DisplayFile } from '@/components/file-gallery';
 import {
   useAddDocumentFile,
   useDeleteDocumentFile,
@@ -15,11 +16,12 @@ import {
   useDeleteDocument,
 } from '@/hooks/queries';
 import {
-  importPickedFile,
+  importUriFile,
   isAllowedFileType,
   pickDocumentFile,
   removeImportedFile,
 } from '@/services/file-storage';
+import { capturePhoto, pickPhoto } from '@/services/image-capture';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { DEFAULT_VALIDITY_DAYS } from '@/domain/document-status';
 import { useTheme } from '@/hooks/use-theme';
@@ -57,6 +59,9 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   const { data: types } = useDocumentTypes();
   const save = useSaveDocument();
   const remove = useDeleteDocument();
+  const addFile = useAddDocumentFile();
+
+  const documentId = initial?.id ?? null;
 
   const [name, setName] = useState(initial?.name ?? '');
   const [number, setNumber] = useState(initial?.number ?? '');
@@ -72,9 +77,37 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   const [authority, setAuthority] = useState(initial?.issuingAuthority ?? '');
   const [country, setCountry] = useState(initial?.issuingCountry ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [pending, setPending] = useState<DisplayFile[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const submit = () => {
+  /** Adds an image/file either directly (saved doc) or as pending (new doc). */
+  const handleAdd = async (source: 'camera' | 'gallery' | 'file') => {
+    let uri: string | null = null;
+    let fileName: string;
+    if (source === 'camera') {
+      uri = await capturePhoto();
+      fileName = `photo_${Date.now()}.jpg`;
+    } else if (source === 'gallery') {
+      uri = await pickPhoto();
+      fileName = `photo_${Date.now()}.jpg`;
+    } else {
+      const picked = await pickDocumentFile();
+      if (!picked) return;
+      if (!isAllowedFileType(picked.mimeType, picked.name)) return;
+      uri = picked.uri;
+      fileName = picked.name;
+    }
+    if (!uri) return;
+    if (documentId) {
+      const localPath = await importUriFile(`documents/${documentId}`, uri, fileName);
+      addFile.mutate({ documentId, localPath, fileName, mimeType: null, size: null });
+    } else {
+      setPending((p) => [...p, { id: uri, uri, name: fileName }]);
+    }
+  };
+
+  const submit = async () => {
     if (!name.trim()) {
       setError(t('documents.errors.nameRequired'));
       return;
@@ -83,20 +116,34 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
       setError(t('documents.errors.expiryBeforeIssue'));
       return;
     }
-    save.mutate({
-      id: initial?.id,
-      name: name.trim(),
-      number: number.trim() || null,
-      typeId,
-      issueDate: issueDate || null,
-      expiryDate: expiryDate || null,
-      issuingAuthority: authority.trim() || null,
-      issuingCountry: country.trim() || null,
-      warningThresholdDays: parseInt(warningThreshold, 10) || null,
-      validThresholdDays: parseInt(validThreshold, 10) || null,
-      notes: notes.trim() || null,
-    });
-    router.back();
+    setSaving(true);
+    try {
+      const doc = await save.mutateAsync({
+        id: initial?.id,
+        name: name.trim(),
+        number: number.trim() || null,
+        typeId,
+        issueDate: issueDate || null,
+        expiryDate: expiryDate || null,
+        issuingAuthority: authority.trim() || null,
+        issuingCountry: country.trim() || null,
+        warningThresholdDays: parseInt(warningThreshold, 10) || null,
+        validThresholdDays: parseInt(validThreshold, 10) || null,
+        notes: notes.trim() || null,
+      });
+      // Import pending attachments now that the document id exists.
+      for (const file of pending) {
+        try {
+          const localPath = await importUriFile(`documents/${doc.id}`, file.uri, file.name);
+          addFile.mutate({ documentId: doc.id, localPath, fileName: file.name, mimeType: null, size: null });
+        } catch {
+          // per-file copy is best-effort
+        }
+      }
+      router.back();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const confirmDelete = () => {
@@ -122,7 +169,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
         onBack={() => router.back()}
         action={initial ? { label: t('common.delete'), onPress: confirmDelete } : undefined}
       />
-      <ScrollView contentContainerStyle={styles.form}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={styles.form}>
         {initial ? (
           <View style={styles.statusRow}>
             <Badge label={t(`documents.status.${initial.status}`)} tone={STATUS_TONE[initial.status]} />
@@ -156,19 +203,22 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
         <LabeledInput label={t('documents.authority')} value={authority} onChangeText={setAuthority} />
         <LabeledInput label={t('documents.country')} value={country} onChangeText={setCountry} />
         <LabeledInput label={t('documents.notes')} value={notes} onChangeText={setNotes} multiline />
-        {initial ? <DocumentFilesSection documentId={initial.id} /> : null}
-        {initial ? (
-          <FieldRow label={t('documents.expiryDate')} value={formatDate(initial.expiryDate)} />
-        ) : null}
+        <DocumentFilesSection
+          documentId={documentId}
+          pending={pending}
+          onRemovePending={(id) => setPending((p) => p.filter((f) => f.id !== id))}
+          onAdd={(source) => void handleAdd(source)}
+        />
+        {initial ? <FieldRow label={t('documents.expiryDate')} value={formatDate(initial.expiryDate)} /> : null}
         <View style={styles.actions}>
-          <Button label={t('common.save')} onPress={submit} style={styles.flexBtn} />
+          <Button
+            label={saving ? t('common.loading') : t('common.save')}
+            onPress={() => void submit()}
+            style={styles.flexBtn}
+            disabled={saving}
+          />
           {initial ? (
-            <Button
-              label={t('common.delete')}
-              onPress={confirmDelete}
-              variant="danger"
-              style={styles.flexBtn}
-            />
+            <Button label={t('common.delete')} onPress={confirmDelete} variant="danger" style={styles.flexBtn} />
           ) : null}
         </View>
       </ScrollView>
@@ -176,50 +226,57 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   );
 }
 
-function DocumentFilesSection({ documentId }: { documentId: string }) {
+function DocumentFilesSection({
+  documentId,
+  pending,
+  onRemovePending,
+  onAdd,
+}: {
+  documentId: string | null;
+  pending: DisplayFile[];
+  onRemovePending: (id: string) => void;
+  onAdd: (source: 'camera' | 'gallery' | 'file') => void;
+}) {
   const { t } = useTranslation();
-  const colors = useTheme();
-  const { data: files } = useDocumentFiles(documentId);
-  const addFile = useAddDocumentFile();
+  const { data: savedFiles } = useDocumentFiles(documentId);
   const deleteFile = useDeleteDocumentFile();
 
-  const attach = async () => {
-    const picked = await pickDocumentFile();
-    if (!picked) return;
-    if (!isAllowedFileType(picked.mimeType, picked.name)) return;
-    const localPath = await importPickedFile(documentId, picked);
-    addFile.mutate({
-      documentId,
-      localPath,
-      fileName: picked.name,
-      mimeType: picked.mimeType,
-      size: picked.size,
-    });
+  const saved: DisplayFile[] = (savedFiles ?? []).map((f) => ({
+    id: f.id,
+    uri: f.localPath,
+    name: f.fileName,
+  }));
+  const all = [...saved, ...pending];
+
+  const removeFile = (id: string) => {
+    const savedFile = savedFiles?.find((f) => f.id === id);
+    if (savedFile && documentId) {
+      void removeImportedFile(savedFile.localPath);
+      deleteFile.mutate({ id, documentId });
+    } else {
+      onRemovePending(id);
+    }
   };
 
   return (
-    <View>
-      <FieldRow label={t('documents.files')} value={String(files?.length ?? 0)} />
-      {(files ?? []).map((file) => (
-        <View key={file.id} style={styles.fileRow}>
-          <Text style={{ color: colors.text, flex: 1 }} numberOfLines={1}>
-            {file.fileName}
-          </Text>
-          <Text
-            style={{ color: colors.danger }}
-            onPress={() => {
-              void removeImportedFile(file.localPath);
-              deleteFile.mutate({ id: file.id, documentId });
-            }}
-          >
-            ✕
-          </Text>
-        </View>
-      ))}
-      <Text style={{ color: colors.primary, fontWeight: '600' }} onPress={() => void attach()}>
-        + {t('documents.attachFile')} (PDF/JPG/PNG)
-      </Text>
+    <View style={styles.filesSection}>
+      <FieldRow label={t('documents.files')} value={String(all.length)} />
+      <FileGallery files={all} onRemove={(id) => removeFile(id)} />
+      <View style={styles.fileActions}>
+        <AddLink label={t('tripFiles.camera')} onPress={() => onAdd('camera')} />
+        <AddLink label={t('tripFiles.gallery')} onPress={() => onAdd('gallery')} />
+        <AddLink label={t('tripFiles.pdf')} onPress={() => onAdd('file')} />
+      </View>
     </View>
+  );
+}
+
+function AddLink({ label, onPress }: { label: string; onPress: () => void }) {
+  const colors = useTheme();
+  return (
+    <Text style={{ color: colors.primary, fontWeight: '600' }} onPress={onPress}>
+      + {label}
+    </Text>
   );
 }
 
@@ -229,5 +286,6 @@ const styles = StyleSheet.create({
   statusRow: { alignItems: 'flex-start', marginBottom: Spacing.sm },
   actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
   flexBtn: { flex: 1 },
-  fileRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 4 },
+  filesSection: { marginTop: Spacing.sm, gap: Spacing.sm },
+  fileActions: { flexDirection: 'row', gap: Spacing.lg, flexWrap: 'wrap' },
 });

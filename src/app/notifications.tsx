@@ -34,7 +34,7 @@ export default function NotificationsScreen() {
           ),
         }}
       />
-      <ScrollView contentContainerStyle={styles.list}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={styles.list}>
         {(notifications ?? []).length === 0 ? (
           <EmptyState title={t('notifications.empty')} />
         ) : null}

@@ -63,7 +63,7 @@ export default function CareerScreen() {
   };
 
   return (
-    <ScrollView
+    <ScrollView nestedScrollEnabled
       contentContainerStyle={styles.container}
       style={{ backgroundColor: colors.background }}
     >

@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/primitives';
 import { HeaderBar, LabeledInput, Select } from '@/components/ui/form';
 import { DatePickerField } from '@/components/ui/date-picker';
 import { ContractFilesSection } from '@/components/contract-files';
-import { useContracts, useRanks, useSaveContract, useVessels } from '@/hooks/queries';
+import { FileGallery, type DisplayFile } from '@/components/file-gallery';
+import { useAddTripFile, useContracts, useRanks, useSaveContract, useVessels } from '@/hooks/queries';
 import { expectedSignOff, type DurationInput } from '@/domain/contract';
 import { isISODate } from '@/utils/date';
+import { importUriFile, isAllowedFileType, pickDocumentFile } from '@/services/file-storage';
+import { capturePhoto, pickPhoto } from '@/services/image-capture';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
 import type { ContractListRow } from '@/hooks/queries';
@@ -36,6 +39,9 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
   const { data: vessels } = useVessels();
   const { data: ranks } = useRanks();
   const save = useSaveContract();
+  const addTripFile = useAddTripFile();
+
+  const contractId = initial?.id ?? null;
 
   const [vesselId, setVesselId] = useState<string | null>(initial?.vesselId ?? null);
   const [rankId, setRankId] = useState<string | null>(initial?.rankId || null);
@@ -46,7 +52,34 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
   const [customEndDate, setCustomEndDate] = useState('');
   const [actualSignOff, setActualSignOff] = useState(initial?.actualSignOff ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [pending, setPending] = useState<DisplayFile[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const handleAdd = async (source: 'camera' | 'gallery' | 'file') => {
+    let uri: string | null = null;
+    let fileName: string;
+    if (source === 'camera') {
+      uri = await capturePhoto();
+      fileName = `contract_${Date.now()}.jpg`;
+    } else if (source === 'gallery') {
+      uri = await pickPhoto();
+      fileName = `contract_${Date.now()}.jpg`;
+    } else {
+      const picked = await pickDocumentFile();
+      if (!picked) return;
+      if (!isAllowedFileType(picked.mimeType, picked.name)) return;
+      uri = picked.uri;
+      fileName = picked.name;
+    }
+    if (!uri) return;
+    if (contractId) {
+      const localPath = await importUriFile(`trips/${contractId}`, uri, fileName);
+      addTripFile.mutate({ contractId, seaTimeId: null, kind: 'contract', localPath, fileName, mimeType: null, size: null });
+    } else {
+      setPending((p) => [...p, { id: uri, uri, name: fileName }]);
+    }
+  };
 
   const duration: DurationInput = {
     mode,
@@ -56,7 +89,7 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
   };
   const preview = isISODate(joinDate) ? expectedSignOff(joinDate, duration) : null;
 
-  const submit = () => {
+  const submit = async () => {
     const errs: string[] = [];
     if (!vesselId) errs.push(t('contracts.errors.vesselRequired'));
     if (!rankId) errs.push(t('contracts.errors.rankRequired'));
@@ -67,25 +100,47 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
     }
     setErrors(errs);
     if (errs.length > 0 || !preview) return;
-    save.mutate({
-      id: initial?.id,
-      vesselId: vesselId!,
-      rankId: rankId!,
-      joinDate,
-      expectedSignOff: preview,
-      actualSignOff: isISODate(actualSignOff) ? actualSignOff : null,
-      durationDays: Math.round((Date.parse(preview) - Date.parse(joinDate)) / 86_400_000),
-      status: isISODate(actualSignOff) ? 'completed' : 'active',
-      notes: notes.trim() || null,
-    });
-    router.back();
+    setSaving(true);
+    try {
+      const contract = await save.mutateAsync({
+        id: initial?.id,
+        vesselId: vesselId!,
+        rankId: rankId!,
+        joinDate,
+        expectedSignOff: preview,
+        actualSignOff: isISODate(actualSignOff) ? actualSignOff : null,
+        durationDays: Math.round((Date.parse(preview) - Date.parse(joinDate)) / 86_400_000),
+        status: isISODate(actualSignOff) ? 'completed' : 'active',
+        notes: notes.trim() || null,
+      });
+      // Import pending contract scans now that the contract id exists.
+      for (const file of pending) {
+        try {
+          const localPath = await importUriFile(`trips/${contract.id}`, file.uri, file.name);
+          addTripFile.mutate({
+            contractId: contract.id,
+            seaTimeId: null,
+            kind: 'contract',
+            localPath,
+            fileName: file.name,
+            mimeType: null,
+            size: null,
+          });
+        } catch {
+          // per-file copy is best-effort
+        }
+      }
+      router.back();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('contracts.add')} onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={styles.form}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={styles.form}>
         <Select
           label={t('contracts.vessel')}
           value={vesselId}
@@ -134,13 +189,38 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
           onChange={setActualSignOff}
         />
         <LabeledInput label={t('contracts.notes')} value={notes} onChangeText={setNotes} multiline />
-        {initial ? <ContractFilesSection contractId={initial.id} /> : null}
+        {contractId ? (
+          <ContractFilesSection contractId={contractId} />
+        ) : (
+          <View style={styles.filesSection}>
+            <Text style={{ color: colors.textMuted, fontSize: 13 }}>{t('tripFiles.contract')}</Text>
+            <FileGallery
+              files={pending}
+              onRemove={(id) => setPending((p) => p.filter((f) => f.id !== id))}
+            />
+            <View style={styles.fileActions}>
+              <Text style={{ color: colors.primary, fontWeight: '600' }} onPress={() => void handleAdd('camera')}>
+                + {t('tripFiles.camera')}
+              </Text>
+              <Text style={{ color: colors.primary, fontWeight: '600' }} onPress={() => void handleAdd('gallery')}>
+                + {t('tripFiles.gallery')}
+              </Text>
+              <Text style={{ color: colors.primary, fontWeight: '600' }} onPress={() => void handleAdd('file')}>
+                + {t('tripFiles.pdf')}
+              </Text>
+            </View>
+          </View>
+        )}
         {errors.map((err, i) => (
           <Text key={i} style={{ color: colors.danger, fontSize: 13 }}>
             {err}
           </Text>
         ))}
-        <Button label={t('common.save')} onPress={submit} />
+        <Button
+          label={saving ? t('common.loading') : t('common.save')}
+          onPress={() => void submit()}
+          disabled={saving}
+        />
       </ScrollView>
     </View>
   );
@@ -150,5 +230,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   form: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   preview: { marginBottom: Spacing.md },
+  filesSection: { marginTop: Spacing.sm, gap: Spacing.sm },
+  fileActions: { flexDirection: 'row', gap: Spacing.lg, flexWrap: 'wrap' },
 });
-

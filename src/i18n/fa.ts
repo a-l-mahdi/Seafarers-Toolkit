@@ -18,6 +18,7 @@ const fa: Translation = {
     month: 'ماه',
     dayOfMonth: 'روز',
     confirm: 'تأیید',
+    share: 'ارسال',
     confirmDelete: 'آیا از حذف این مورد مطمئن هستید؟',
     notSet: 'ثبت نشده',
     details: 'جزئیات',

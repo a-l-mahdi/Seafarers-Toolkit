@@ -41,7 +41,7 @@ export default function DocumentsScreen() {
           ),
         }}
       />
-      <FlatList
+      <FlatList nestedScrollEnabled
         contentContainerStyle={styles.list}
         data={documents ?? []}
         keyExtractor={(item) => item.id}

@@ -9,15 +9,63 @@ export interface OcrFields {
 const DATE_RE = /\b(\d{2,4})[\/.\-](\d{1,2})[\/.\-](\d{2,4})\b/g;
 const NUMBER_TOKEN_RE = /\b\d{5,15}\b/g;
 
+const ISSUE_KEYWORDS = [
+  'date of issue',
+  'date issued',
+  'issued',
+  'issue',
+  'صدور',
+  'تاریخ صدور',
+];
+const EXPIRY_KEYWORDS = [
+  'date of expiry',
+  'expiry date',
+  'expires',
+  'expiry',
+  'valid until',
+  'valid',
+  'validity',
+  'انقضا',
+  'اعتبار',
+  'تا تاریخ',
+];
+
 /**
- * Pure parser that extracts document number, issue and expiry dates from
- * OCR text. Handles both Gregorian and Jalali (13xx/14xx) dates.
+ * Pure parser that extracts document number, issue and expiry dates from OCR
+ * text. Dates are matched to fields by their line labels first ("date of
+ * issue" / "date of expiry" / «صدور» / «انقضا») and fall back to min/max
+ * ordering. Handles Gregorian and Jalali (12xx-15xx) dates.
  * All returned dates are ISO Gregorian strings.
  */
 export function parseDocumentText(text: string): OcrFields {
-  const sorted = [...extractDates(text)].sort();
-  const issueDate = sorted.length >= 2 ? sorted[0] : (sorted[0] ?? null);
-  const expiryDate = sorted.length >= 2 ? sorted[sorted.length - 1] : null;
+  let issueDate: string | null = null;
+  let expiryDate: string | null = null;
+
+  for (const line of text.split(/\r?\n/)) {
+    const dates = extractDates(line);
+    if (dates.length === 0) continue;
+    const lower = line.toLowerCase();
+    const hasIssue = matchesAny(lower, ISSUE_KEYWORDS);
+    const hasExpiry = matchesAny(lower, EXPIRY_KEYWORDS);
+
+    if (hasIssue && hasExpiry) {
+      // Line carries both fields (e.g. "issued 2020/01/01, valid until 2030/01/01").
+      const sorted = [...dates].sort();
+      if (!issueDate) issueDate = sorted[0];
+      if (!expiryDate) expiryDate = sorted[sorted.length - 1];
+    } else if (hasIssue && !issueDate) {
+      issueDate = dates[0];
+    } else if (hasExpiry && !expiryDate) {
+      expiryDate = dates[dates.length - 1];
+    }
+  }
+
+  // Fallback: earliest = issue, latest = expiry.
+  if (!issueDate || !expiryDate) {
+    const sorted = [...extractDates(text)].sort();
+    if (!issueDate && sorted.length > 0) issueDate = sorted[0];
+    if (!expiryDate && sorted.length > 1) expiryDate = sorted[sorted.length - 1];
+  }
 
   let best: { value: string; length: number } | null = null;
   for (const match of text.matchAll(NUMBER_TOKEN_RE)) {
@@ -25,11 +73,11 @@ export function parseDocumentText(text: string): OcrFields {
     if (!best || value.length > best.length) best = { value, length: value.length };
   }
 
-  return {
-    documentNumber: best?.value ?? null,
-    issueDate,
-    expiryDate,
-  };
+  return { documentNumber: best?.value ?? null, issueDate, expiryDate };
+}
+
+function matchesAny(lower: string, keywords: string[]): boolean {
+  return keywords.some((k) => lower.includes(k));
 }
 
 function extractDates(text: string): string[] {

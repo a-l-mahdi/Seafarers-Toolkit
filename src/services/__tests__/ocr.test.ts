@@ -37,4 +37,31 @@ describe('OCR document text parser', () => {
     expect(result.issueDate).toBe('2020-01-01');
     expect(result.expiryDate).toBe('2030-01-01');
   });
+
+  it('assigns dates by "date of issue" / "date of expiry" labels', () => {
+    const result = parseDocumentText(
+      'SEAFARER PASSPORT\nDate of issue: 2021/03/10\nDate of expiry: 2031/03/09\nNo. 7654321'
+    );
+    expect(result.issueDate).toBe('2021-03-10');
+    expect(result.expiryDate).toBe('2031-03-09');
+    expect(result.documentNumber).toBe('7654321');
+  });
+
+  it('label assignment wins even when order contradicts min/max', () => {
+    // Expiry printed before issue on the document (layout quirk)
+    const result = parseDocumentText('Date of expiry 2032/01/01\nDate of issue 2022/01/01');
+    expect(result.issueDate).toBe('2022-01-01');
+    expect(result.expiryDate).toBe('2032-01-01');
+  });
+
+  it('assigns Persian labels (صدور / انقضا)', () => {
+    const result = parseDocumentText('تاریخ صدور: 1403/05/01\nتاریخ انقضا: 1404/05/01');
+    expect(result.issueDate).toBe('2024-07-22');
+    expect(result.expiryDate).toBe('2025-07-23');
+  });
+
+  it('uses labeled expiry alone without forcing issue', () => {
+    const result = parseDocumentText('This certificate is valid until 2029/06/15');
+    expect(result.expiryDate).toBe('2029-06-15');
+  });
 });

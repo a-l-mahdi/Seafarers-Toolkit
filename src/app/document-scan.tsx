@@ -117,7 +117,7 @@ export default function DocumentScanScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('documents.scan.title')} onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={styles.form}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={styles.form}>
         <Card>
           <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: Spacing.md }}>
             {t('documents.scan.hint')}

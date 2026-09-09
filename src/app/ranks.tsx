@@ -41,7 +41,7 @@ export default function RanksScreen() {
   const departments: Department[] = ['deck', 'engine', 'electro', 'other'];
 
   return (
-    <ScrollView contentContainerStyle={styles.container} style={{ backgroundColor: colors.background }}>
+    <ScrollView nestedScrollEnabled contentContainerStyle={styles.container} style={{ backgroundColor: colors.background }}>
       <Stack.Screen
         options={{
           headerShown: true,

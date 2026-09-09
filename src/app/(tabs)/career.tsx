@@ -130,9 +130,12 @@ export default function CareerScreen() {
         )}
       </Card>
 
-      <Link href="/sea-time" asChild>
-        <Text style={{ color: colors.primary, textAlign: 'center', fontWeight: '600' }}>
-          {t('seaTime.addManual')}
+      <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: Spacing.sm }}>
+        {t('career.addSeaTimeHint')}
+      </Text>
+      <Link href="/contracts" asChild>
+        <Text style={{ color: colors.primary, textAlign: 'center', fontWeight: '600', marginTop: Spacing.xs }}>
+          {t('career.goToContracts')}
         </Text>
       </Link>
     </ScrollView>

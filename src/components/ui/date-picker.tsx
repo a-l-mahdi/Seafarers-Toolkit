@@ -201,6 +201,77 @@ export function DatePickerModal({
   );
 }
 
+/** Month + year picker (same wheel style as the date picker), used by the calendar header. */
+export function MonthYearPickerModal({
+  calendar,
+  year,
+  month,
+  onClose,
+  onConfirm,
+}: {
+  calendar: 'gregorian' | 'jalali';
+  year: number;
+  month: number;
+  onClose: () => void;
+  onConfirm: (year: number, month: number) => void;
+}) {
+  const { t } = useTranslation();
+  const colors = useTheme();
+  const isJalali = calendar === 'jalali';
+  const [y, setY] = useState(year);
+  const [m, setM] = useState(month);
+
+  const years: { value: number; label: string }[] = [];
+  const yStart = isJalali ? 1300 : 1930;
+  const yEnd = isJalali ? 1500 : 2130;
+  for (let yy = yStart; yy <= yEnd; yy += 1) years.push({ value: yy, label: String(yy) });
+
+  const months = useMemo(
+    () =>
+      isJalali
+        ? JALALI_MONTHS.map((name, i) => ({ value: i + 1, label: name }))
+        : GREGORIAN_MONTHS.map((name, i) => ({ value: i + 1, label: name })),
+    [isJalali]
+  );
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose}>
+        <Pressable style={[styles.sheet, { backgroundColor: colors.surface }]} onPress={() => undefined}>
+          <Text style={[styles.title, { color: colors.text }]}>
+            {isJalali ? t('settings.jalali') : t('settings.gregorian')}
+          </Text>
+          <View style={styles.row}>
+            <WheelColumn
+              label={isJalali ? t('common.month') : 'Month'}
+              options={months}
+              selected={m}
+              onSelect={setM}
+            />
+            <WheelColumn
+              label={isJalali ? t('common.year') : 'Year'}
+              options={years}
+              selected={y}
+              onSelect={setY}
+            />
+          </View>
+          <View style={styles.actions}>
+            <Pressable onPress={onClose} style={[styles.actionBtn, { backgroundColor: colors.surfaceMuted }]}>
+              <Text style={{ color: colors.danger }}>{t('common.cancel')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => onConfirm(y, m)}
+              style={[styles.actionBtn, { backgroundColor: colors.primary }]}
+            >
+              <Text style={{ color: colors.onPrimary, fontWeight: '600' }}>{t('common.confirm')}</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 function WheelColumn({
   label,
   options,

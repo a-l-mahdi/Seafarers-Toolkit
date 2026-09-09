@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/primitives';
@@ -7,7 +7,7 @@ import { HeaderBar, LabeledInput, Select } from '@/components/ui/form';
 import { DatePickerField } from '@/components/ui/date-picker';
 import { ContractFilesSection } from '@/components/contract-files';
 import { FileGallery, type DisplayFile } from '@/components/file-gallery';
-import { useAddTripFile, useContracts, useRanks, useSaveContract, useVessels } from '@/hooks/queries';
+import { useAddTripFile, useContracts, useDeleteContract, useRanks, useSaveContract, useVessels } from '@/hooks/queries';
 import { expectedSignOff, type DurationInput } from '@/domain/contract';
 import { isISODate } from '@/utils/date';
 import { importUriFile, isAllowedFileType, pickDocumentFile } from '@/services/file-storage';
@@ -41,6 +41,7 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
   const { data: vessels } = useVessels();
   const { data: ranks } = useRanks();
   const save = useSaveContract();
+  const remove = useDeleteContract();
   const addTripFile = useAddTripFile();
 
   const contractId = initial?.id ?? null;
@@ -157,10 +158,29 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
     }
   };
 
+  const confirmDelete = () => {
+    if (!initial) return;
+    Alert.alert(t('common.delete'), t('common.confirmDelete'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.delete'),
+        style: 'destructive',
+        onPress: () => {
+          remove.mutate(initial.id);
+          router.back();
+        },
+      },
+    ]);
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <HeaderBar title={t('contracts.add')} onBack={() => router.back()} />
+      <HeaderBar
+        title={initial ? t('common.edit') : t('contracts.add')}
+        onBack={() => router.back()}
+        action={initial ? { label: t('common.delete'), onPress: confirmDelete } : undefined}
+      />
       <ScrollView nestedScrollEnabled contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}>
         <Select
           label={t('contracts.vessel')}
@@ -237,11 +257,17 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
             {err}
           </Text>
         ))}
-        <Button
-          label={saving ? t('common.loading') : t('common.save')}
-          onPress={() => void submit()}
-          disabled={saving}
-        />
+        <View style={styles.actions}>
+          <Button
+            label={saving ? t('common.loading') : t('common.save')}
+            onPress={() => void submit()}
+            style={styles.flexBtn}
+            disabled={saving}
+          />
+          {initial ? (
+            <Button label={t('common.delete')} onPress={confirmDelete} variant="danger" style={styles.flexBtn} />
+          ) : null}
+        </View>
       </ScrollView>
     </View>
   );
@@ -251,6 +277,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   form: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   preview: { marginBottom: Spacing.md },
+  actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
+  flexBtn: { flex: 1 },
   filesSection: { marginTop: Spacing.sm, gap: Spacing.sm },
   fileActions: { flexDirection: 'row', gap: Spacing.lg, flexWrap: 'wrap' },
 });

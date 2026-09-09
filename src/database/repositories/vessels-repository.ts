@@ -1,4 +1,5 @@
 import { openDatabase } from '../db';
+import * as FileSystem from 'expo-file-system/legacy';
 import type { Contract, Vessel } from '@/types/domain';
 import { isoNow } from '@/utils/date';
 import { newId } from '@/utils/id';
@@ -168,7 +169,19 @@ export async function signOffContract(id: string, actualSignOff: string): Promis
 
 export async function deleteContract(id: string): Promise<void> {
   const db = await openDatabase();
-  await db.runAsync('DELETE FROM contracts WHERE id = ?', id);
+  // sea_time_records and trip_files cascade via foreign keys; delete explicitly
+  // for clarity, then clean up the contract's attachments on disk (best-effort).
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM trip_files WHERE contract_id = ?', id);
+    await db.runAsync('DELETE FROM contracts WHERE id = ?', id);
+  });
+  try {
+    const dir = `${FileSystem.documentDirectory ?? ''}trips/${id}`;
+    const info = await FileSystem.getInfoAsync(dir);
+    if (info.exists) await FileSystem.deleteAsync(dir, { idempotent: true });
+  } catch {
+    // disk cleanup is best-effort
+  }
 }
 
 export async function validateIMO(imo: string): Promise<boolean> {

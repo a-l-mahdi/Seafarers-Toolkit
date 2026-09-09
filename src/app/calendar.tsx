@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/primitives';
+import { MonthYearPickerModal } from '@/components/ui/date-picker';
 import { useContracts, useDocuments, useLeaveSettings } from '@/hooks/queries';
 import { earnedLeaveDays } from '@/domain/leave';
 import { useSettingsStore } from '@/store/settings-store';
@@ -20,6 +21,11 @@ import {
 } from '@/utils/date';
 
 type DayEvent = 'onboard' | 'leave' | 'expiry' | 'contract_start' | 'contract_end';
+
+interface EventItem {
+  event: DayEvent;
+  label: string;
+}
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -69,6 +75,8 @@ export default function CalendarScreen() {
   const calendarPref = useSettingsStore((s) => s.calendar);
   const locale = useSettingsStore((s) => s.locale);
   const [anchor, setAnchor] = useState(() => todayISO());
+  const [selected, setSelected] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const { data: contracts } = useContracts();
   const { data: documents } = useDocuments();
   const { data: leaveSettings } = useLeaveSettings();
@@ -120,6 +128,28 @@ export default function CalendarScreen() {
     return map;
   }, [contracts, documents, leaveSettings]);
 
+  /** Concrete items behind each day's events, shown in the day-detail list. */
+  const dayDetails = useMemo(() => {
+    const map = new Map<string, EventItem[]>();
+    const add = (iso: string, event: DayEvent, label: string) => {
+      if (!iso) return;
+      if (!map.has(iso)) map.set(iso, []);
+      const items = map.get(iso)!;
+      if (!items.some((i) => i.event === event && i.label === label)) {
+        items.push({ event, label });
+      }
+    };
+    for (const c of contracts ?? []) {
+      const vessel = c.vesselName ?? '—';
+      add(c.joinDate, 'contract_start', vessel);
+      add(c.actualSignOff ?? c.expectedSignOff, 'contract_end', vessel);
+    }
+    for (const doc of documents ?? []) {
+      if (doc.expiryDate) add(doc.expiryDate, 'expiry', doc.name);
+    }
+    return map;
+  }, [contracts, documents]);
+
   const weekdayLabels = useMemo(() => {
     if (calendarPref === 'jalali') return ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'];
     const fmt = new Intl.DateTimeFormat(locale === 'fa' ? 'fa' : 'en', { weekday: 'narrow' });
@@ -134,27 +164,39 @@ export default function CalendarScreen() {
 
   const today = todayISO();
 
-  const prev = () => {
-    if (calendarPref === 'jalali') {
-      const { y, m } = view.parts;
-      const [ny, nm] = m === 1 ? [y - 1, 12] : [y, m - 1];
-      setAnchor(jalaliToGregorianExact(ny, nm, 1)!);
-    } else {
-      const { y, m } = view.parts;
-      const [ny, nm] = m === 1 ? [y - 1, 12] : [y, m - 1];
-      setAnchor(`${ny}-${pad(nm)}-01`);
-    }
+  const changeMonth = (dir: -1 | 1) => {
+    const { y, m } = view.parts;
+    let [ny, nm] = [y, m + dir];
+    if (nm === 0) [ny, nm] = [y - 1, 12];
+    if (nm === 13) [ny, nm] = [y + 1, 1];
+    setSelected(null);
+    setAnchor(
+      calendarPref === 'jalali'
+        ? jalaliToGregorianExact(ny, nm, 1)!
+        : `${ny}-${pad(nm)}-01`
+    );
   };
-  const next = () => {
-    if (calendarPref === 'jalali') {
-      const { y, m } = view.parts;
-      const [ny, nm] = m === 12 ? [y + 1, 1] : [y, m + 1];
-      setAnchor(jalaliToGregorianExact(ny, nm, 1)!);
-    } else {
-      const { y, m } = view.parts;
-      const [ny, nm] = m === 12 ? [y + 1, 1] : [y, m + 1];
-      setAnchor(`${ny}-${pad(nm)}-01`);
-    }
+
+  // Horizontal swipe on the grid moves between months; vertical gestures
+  // still pass through to the outer ScrollView (threshold on dx vs dy).
+  const swipe = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_e, gs) =>
+          Math.abs(gs.dx) > 24 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.5,
+        onPanResponderRelease: (_e, gs) => {
+          if (gs.dx <= -60) changeMonth(1);
+          else if (gs.dx >= 60) changeMonth(-1);
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view.parts.y, view.parts.m, calendarPref]
+  );
+
+  const pickMonth = (y: number, m: number) => {
+    setPickerOpen(false);
+    setSelected(null);
+    setAnchor(calendarPref === 'jalali' ? jalaliToGregorianExact(y, m, 1)! : `${y}-${pad(m)}-01`);
   };
 
   const eventColor: Record<DayEvent, string> = {
@@ -164,6 +206,20 @@ export default function CalendarScreen() {
     contract_start: colors.primary,
     contract_end: colors.warning,
   };
+
+  const selectedDetails = selected ? (dayDetails.get(selected) ?? []) : [];
+  const selectedTitle = useMemo(() => {
+    if (!selected) return '';
+    if (calendarPref === 'jalali') {
+      const [jy, jm, jd] = gregorianToJalali(selected).split('/').map(Number);
+      return `${jd} ${JALALI_MONTHS[jm - 1]} ${jy}`;
+    }
+    return new Intl.DateTimeFormat(locale === 'fa' ? 'fa' : 'en', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(isoToDate(selected));
+  }, [selected, calendarPref, locale]);
 
   return (
     <ScrollView nestedScrollEnabled contentContainerStyle={[styles.container, { paddingBottom: Spacing.xxl + insets.bottom }]} style={{ backgroundColor: colors.background }}>
@@ -177,12 +233,15 @@ export default function CalendarScreen() {
       />
       <Card>
         <View style={styles.monthRow}>
-          <Pressable onPress={prev} hitSlop={12}>
-            <Text style={{ color: colors.primary, fontSize: 20, fontWeight: '700' }}>{'‹'}</Text>
+          <Pressable onPress={() => changeMonth(-1)} hitSlop={10} style={styles.arrow}>
+            <Text style={[styles.arrowText, { color: colors.primary }]}>{'‹'}</Text>
           </Pressable>
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700' }}>{view.title}</Text>
-          <Pressable onPress={next} hitSlop={12}>
-            <Text style={{ color: colors.primary, fontSize: 20, fontWeight: '700' }}>{'›'}</Text>
+          <Pressable onPress={() => setPickerOpen(true)} hitSlop={8} style={styles.titleBtn}>
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700' }}>{view.title}</Text>
+            <Text style={{ color: colors.textMuted, fontSize: 13 }}>{'▾'}</Text>
+          </Pressable>
+          <Pressable onPress={() => changeMonth(1)} hitSlop={10} style={styles.arrow}>
+            <Text style={[styles.arrowText, { color: colors.primary }]}>{'›'}</Text>
           </Pressable>
         </View>
         <View style={styles.weekRow}>
@@ -192,20 +251,15 @@ export default function CalendarScreen() {
             </Text>
           ))}
         </View>
-        <View style={styles.grid}>
+        <View style={styles.grid} {...swipe.panHandlers}>
           {cells.map((day, i) => {
             if (day === null) return <View key={`e${i}`} style={styles.cell} />;
             const iso = view.isoForDay(day);
             const dayEvents = events.get(iso);
             const isToday = iso === today;
-            return (
-              <View
-                key={iso}
-                style={[
-                  styles.cell,
-                  { backgroundColor: isToday ? colors.primaryMuted : 'transparent', borderRadius: Radius.sm },
-                ]}
-              >
+            const isSelected = iso === selected;
+            const body = (
+              <>
                 <Text style={{ color: colors.text, fontSize: 13, textAlign: 'center' }}>{day}</Text>
                 <View style={styles.dots}>
                   {dayEvents
@@ -214,11 +268,54 @@ export default function CalendarScreen() {
                       ))
                     : null}
                 </View>
+              </>
+            );
+            const cellStyle = [
+              styles.cell,
+              isToday ? { backgroundColor: colors.primaryMuted, borderRadius: Radius.sm } : null,
+              isSelected ? styles.selectedCell : null,
+            ];
+            return dayEvents ? (
+              <Pressable
+                key={iso}
+                style={cellStyle}
+                onPress={() => setSelected(iso === selected ? null : iso)}
+              >
+                {body}
+              </Pressable>
+            ) : (
+              <View key={iso} style={cellStyle}>
+                {body}
               </View>
             );
           })}
         </View>
       </Card>
+
+      {pickerOpen ? (
+        <MonthYearPickerModal
+          calendar={calendarPref}
+          year={view.parts.y}
+          month={view.parts.m}
+          onClose={() => setPickerOpen(false)}
+          onConfirm={pickMonth}
+        />
+      ) : null}
+
+      {selected && selectedDetails.length > 0 ? (
+        <Card>
+          <Text style={[styles.detailTitle, { color: colors.text }]}>{selectedTitle}</Text>
+          {selectedDetails.map((item, i) => (
+            <View key={i} style={[styles.eventRow, { backgroundColor: eventColor[item.event] }]}>
+              <Text style={styles.eventText}>
+                {t(`calendar.legend.${item.event}`)}
+                {item.label ? ` · ${item.label}` : ''}
+              </Text>
+            </View>
+          ))}
+        </Card>
+      ) : null}
+
       <Card>
         <LegendRow label={t('calendar.legend.onBoard')} color={eventColor.onboard} textColor={colors.text} />
         <LegendRow label={t('calendar.legend.leave')} color={eventColor.leave} textColor={colors.text} />
@@ -247,11 +344,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.md,
   },
+  arrow: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs },
+  arrowText: { fontSize: 34, fontWeight: '700', lineHeight: 40 },
+  titleBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   weekRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 },
   weekLabel: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 12, fontWeight: '600' },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: `${100 / 7}%`, paddingVertical: 4, alignItems: 'center' },
+  selectedCell: { borderWidth: 2, borderRadius: Radius.sm },
   dots: { flexDirection: 'row', gap: 2, marginTop: 2 },
   dot: { width: 6, height: 6, borderRadius: 3 },
+  detailTitle: { fontSize: 15, fontWeight: '700', marginBottom: Spacing.sm },
+  eventRow: {
+    paddingVertical: 8,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.sm,
+    marginBottom: 6,
+  },
+  eventText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 4 },
 });

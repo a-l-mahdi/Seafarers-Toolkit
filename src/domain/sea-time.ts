@@ -1,4 +1,4 @@
-import type { Contract, SeaTimeAmount, SeaTimeRecord } from '@/types/domain';
+import type { Contract, SeaTimeAmount, SeaTimeByRank, SeaTimeRecord } from '@/types/domain';
 import { diffInDays, isBefore, todayISO } from '@/utils/date';
 
 export function normalize({ days, hours }: SeaTimeAmount): SeaTimeAmount {
@@ -56,4 +56,57 @@ export function findOverlaps(
     }
   }
   return warnings;
+}
+
+export interface SeaTimeSummary {
+  total: SeaTimeAmount;
+  byRank: SeaTimeByRank[];
+}
+
+/**
+ * Accurate sea-time totals, derived from the contracts list (computed live so
+ * sign-off dates and edits are always reflected) plus manual records that do
+ * NOT overlap a contract of the same rank (those would double count).
+ */
+export function buildSeaTimeSummary(
+  contracts: Contract[],
+  manualRecords: SeaTimeRecord[],
+  rankNames: Map<string, string>,
+  now: Date = new Date()
+): SeaTimeSummary {
+  const overlappingIds = new Set(
+    findOverlaps(manualRecords, contracts)
+      .map((warning) => {
+        const record = manualRecords.find((r) => r.id === warning.manualRecordId);
+        const contract = contracts.find((c) => c.id === warning.contractId);
+        if (!record || !contract) return null;
+        // Only the same rank bucket double counts; different ranks are separate.
+        return (record.rankId ?? null) === (contract.rankId || null) ? record.id : null;
+      })
+      .filter((id): id is string => id !== null)
+  );
+
+  const buckets = new Map<string | null, SeaTimeAmount>();
+  const push = (rankId: string | null, amount: SeaTimeAmount) => {
+    const key = rankId ?? '_none';
+    buckets.set(key, sum([buckets.get(key) ?? { days: 0, hours: 0 }, amount]));
+  };
+
+  for (const contract of contracts) {
+    push(contract.rankId || null, seaTimeForContract(contract, now));
+  }
+  for (const record of manualRecords) {
+    if (overlappingIds.has(record.id)) continue;
+    push(record.rankId, { days: record.days, hours: record.hours });
+  }
+
+  const byRank: SeaTimeByRank[] = [...buckets.entries()]
+    .map(([key, amount]) => {
+      const rankId = key === '_none' ? null : key;
+      const rankName = rankId ? (rankNames.get(rankId) ?? rankId) : 'Unranked';
+      return { rankId, rankName, days: amount.days, hours: amount.hours };
+    })
+    .sort((a, b) => b.days - a.days);
+
+  return { total: sum([...buckets.values()]), byRank };
 }

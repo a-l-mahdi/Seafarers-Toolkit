@@ -1,12 +1,10 @@
 import { openDatabase } from '../db';
 import {
-  seaTimeForContract,
-  sum,
+  buildSeaTimeSummary,
+  type SeaTimeSummary,
 } from '@/domain/sea-time';
 import type {
   Contract,
-  SeaTimeAmount,
-  SeaTimeByRank,
   SeaTimeRecord,
   SeaTimeSource,
 } from '@/types/domain';
@@ -74,37 +72,14 @@ export async function deleteSeaTimeRecord(id: string): Promise<void> {
 }
 
 /**
- * Total sea time = sum of all contract-derived sea time (computed live to avoid
- * double counting) + all manual/imported records.
+ * Total sea time = contract-derived sea time (computed live from the contracts
+ * list) + manual records that do not overlap a same-rank contract.
  */
 export async function getSeaTimeSummary(
   contracts: Contract[],
   rankNames: Map<string, string>
-): Promise<{ total: SeaTimeAmount; byRank: SeaTimeByRank[] }> {
+): Promise<SeaTimeSummary> {
   const records = await listSeaTimeRecords();
   const manualRecords = records.filter((r) => r.contractId === null);
-
-  const buckets = new Map<string | null, SeaTimeAmount>();
-
-  const push = (rankId: string | null, amount: SeaTimeAmount) => {
-    const key = rankId ?? '_none';
-    buckets.set(key, sum([buckets.get(key) ?? { days: 0, hours: 0 }, amount]));
-  };
-
-  for (const contract of contracts) {
-    push(contract.rankId || null, seaTimeForContract(contract));
-  }
-  for (const record of manualRecords) {
-    push(record.rankId, { days: record.days, hours: record.hours });
-  }
-
-  const byRank: SeaTimeByRank[] = [...buckets.entries()]
-    .map(([key, amount]) => {
-      const rankId = key === '_none' ? null : key;
-      const rankName = rankId ? (rankNames.get(rankId) ?? rankId) : 'Unranked';
-      return { rankId, rankName, days: amount.days, hours: amount.hours };
-    })
-    .sort((a, b) => b.days - a.days);
-
-  return { total: sum([...buckets.values()]), byRank };
+  return buildSeaTimeSummary(contracts, manualRecords, rankNames, new Date());
 }

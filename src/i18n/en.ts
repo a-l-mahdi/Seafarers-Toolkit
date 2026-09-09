@@ -228,6 +228,8 @@ const en = {
     estimatedDate: 'Estimated Qualification Date',
     notPredictable: 'Start a contract to get an estimate',
     history: 'Sea Time History by Rank',
+    addSeaTimeHint: 'Sea time is calculated automatically from your contracts. Add or complete a contract to grow it.',
+    goToContracts: 'Go to Contracts',
   },
   calendar: {
     title: 'Calendar',

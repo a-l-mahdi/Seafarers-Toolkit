@@ -125,6 +125,20 @@ export async function saveContract(
   input: Omit<Contract, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
 ): Promise<Contract> {
   const db = await openDatabase();
+  // A sailor cannot be on two vessels at once: reject overlapping contracts.
+  // (Join dates before the previous leave window are fine — leave carries over.)
+  const overlap = await db.getFirstAsync<{ id: string }>(
+    `SELECT id FROM contracts
+     WHERE id IS NOT ?
+       AND join_date <= (CASE WHEN ? IS NOT NULL THEN ? ELSE ? END)
+       AND (CASE WHEN actual_sign_off IS NOT NULL THEN actual_sign_off ELSE expected_sign_off END) >= ?`,
+    input.id ?? '',
+    input.actualSignOff,
+    input.actualSignOff,
+    input.expectedSignOff,
+    input.joinDate
+  );
+  if (overlap) throw new Error('CONTRACT_OVERLAP');
   const now = isoNow();
   const id = input.id ?? newId();
   const existing = input.id

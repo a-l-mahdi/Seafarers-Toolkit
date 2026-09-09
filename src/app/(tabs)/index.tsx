@@ -5,8 +5,8 @@ import { Badge, Button, Card, EmptyState, FieldRow, ProgressBar } from '@/compon
 import { useContracts, useDocuments, useLeaveSettings, useProfile, useRanks, useRequiredSeaTime, useSeaTimeSummary } from '@/hooks/queries';
 import { careerProgress, estimatedQualificationDate } from '@/domain/career';
 import { contractCountdown, contractProgressColor } from '@/domain/contract';
-import { expectedReturnDate, daysUntilReturn } from '@/domain/leave';
-import { todayISO, diffInDays } from '@/utils/date';
+import { computeLeaveLedger, daysUntilReturn } from '@/domain/leave';
+import { todayISO } from '@/utils/date';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { useTheme } from '@/hooks/use-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -52,10 +52,9 @@ export default function DashboardScreen() {
     .at(-1) ?? null;
   const lastSignOff = lastOffContract?.actualSignOff ?? null;
   const onLeave = lastSignOff !== null && (!activeContract || activeContract.joinDate > today);
-  const returnDate =
-    lastOffContract && lastSignOff && leaveSettings
-      ? expectedReturnDate(lastSignOff, leaveSettings, diffInDays(lastOffContract.joinDate, lastSignOff))
-      : null;
+  const ledger = contracts && leaveSettings ? computeLeaveLedger(contracts, leaveSettings) : null;
+  const returnDate = onLeave ? (ledger?.lastReturnDate ?? null) : null;
+  const unusedLeave = ledger?.unusedNow ?? 0;
 
   const alerts: { tone: 'danger' | 'warning' | 'success'; text: string }[] = [];
   if (docStats.expired > 0) alerts.push({ tone: 'danger', text: `${docStats.expired} ${t('documents.status.expired')}` });
@@ -109,6 +108,9 @@ export default function DashboardScreen() {
             <FieldRow label={t('dashboard.joinDate')} value={formatDate(activeContract.joinDate)} />
             <FieldRow label={t('dashboard.signOff')} value={formatDate(activeContract.expectedSignOff)} />
             <FieldRow label={t('dashboard.remaining')} value={`${countdown.remainingDays} ${t('common.days')}`} />
+            {unusedLeave > 0 ? (
+              <FieldRow label={t('dashboard.unusedLeave')} value={`${unusedLeave} ${t('common.days')}`} />
+            ) : null}
             <ProgressBar progress={countdown.progress} color={contractProgressColor(colors, countdown)} />
           </>
         ) : (
@@ -119,6 +121,7 @@ export default function DashboardScreen() {
       {onLeave && returnDate ? (
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('dashboard.leave')}</Text>
+          <FieldRow label={t('dashboard.unusedLeave')} value={`${unusedLeave} ${t('common.days')}`} />
           <FieldRow label={t('dashboard.expectedReturn')} value={formatDate(returnDate)} />
           <FieldRow label={t('dashboard.daysRemaining')} value={`${daysUntilReturn(returnDate)}`} />
         </Card>

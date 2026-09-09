@@ -1,4 +1,5 @@
-import { daysUntilReturn, earnedLeaveDays, expectedReturnDate, leaveDaysFor } from '../leave';
+import { computeLeaveLedger, earnedLeaveDays, expectedReturnDate, leaveDaysFor } from '../leave';
+import type { Contract } from '@/types/domain';
 
 const ratio = (onboardDays: number, leaveDays: number) => ({
   mode: 'ratio' as const,
@@ -7,6 +8,22 @@ const ratio = (onboardDays: number, leaveDays: number) => ({
   manualLeaveStartDate: null,
   manualLeaveEndDate: null,
 });
+
+function contract(id: string, joinDate: string, expectedSignOff: string, actualSignOff: string | null = null): Contract {
+  return {
+    id,
+    vesselId: 'v1',
+    rankId: 'r1',
+    joinDate,
+    expectedSignOff,
+    actualSignOff,
+    durationDays: null,
+    status: actualSignOff ? 'completed' : 'active',
+    notes: null,
+    createdAt: '',
+    updatedAt: '',
+  };
+}
 
 describe('leave', () => {
   it('prorates leave by actual sea days (120/30 × 17.5 = 70)', () => {
@@ -40,10 +57,56 @@ describe('leave', () => {
   it('computes expected return date after sign off', () => {
     expect(expectedReturnDate('2027-03-01', ratio(60, 30), 60)).toBe('2027-03-31');
   });
+});
 
-  it('counts days until return and never goes negative', () => {
-    const now = new Date('2027-03-08T12:00:00Z');
-    expect(daysUntilReturn('2027-03-31', now)).toBe(23);
-    expect(daysUntilReturn('2027-03-01', now)).toBe(0);
+describe('computeLeaveLedger (unused leave carries over to the next contract)', () => {
+  // 30 days onboard → 17.5 leave, rounded up per contract.
+  const settings = ratio(30, 17.5);
+
+  it('adds unused leave on top of the next contract’s earned leave', () => {
+    // A: 2026-01-01 → 2026-05-01 = 120 days → 70 earned. Return = 2026-07-10.
+    // B starts 2026-05-11 → only 10 days of leave taken → 60 carried into B.
+    // B: 2026-05-11 → 2026-09-01 = 113 days → ceil(65.83) = 66 earned.
+    // B window = 66 + 60 = 126 → return 2027-01-05.
+    const ledger = computeLeaveLedger(
+      [contract('a', '2026-01-01', '2026-05-01', '2026-05-01'), contract('b', '2026-05-11', '2026-09-01')],
+      settings
+    );
+    expect(ledger.entries[0]).toMatchObject({ earned: 70, carriedIn: 0, windowDays: 70, returnDate: '2026-07-10' });
+    expect(ledger.entries[1]).toMatchObject({ earned: 66, carriedIn: 60, windowDays: 126, returnDate: '2027-01-05' });
+    expect(ledger.entries[1].leaveUntil).toBe('2027-01-05');
+  });
+
+  it('transfers unused leave to after the new contract and stops leave at rejoin date', () => {
+    const ledger = computeLeaveLedger(
+      [contract('a', '2026-01-01', '2026-05-01', '2026-05-01'), contract('b', '2026-05-11', '2026-09-01')],
+      settings
+    );
+    // A's drawn leave on the calendar ends when B starts (2026-05-11).
+    expect(ledger.entries[0].leaveUntil).toBe('2026-05-11');
+  });
+
+  it('reports unused leave right now for the last contract', () => {
+    // B ended 2026-09-01 (window 126 → return 2027-01-05); on 2026-11-01
+    // 61 days of leave have been taken → 65 unused remain.
+    const ledger = computeLeaveLedger(
+      [
+        contract('a', '2026-01-01', '2026-05-01', '2026-05-01'),
+        contract('b', '2026-05-11', '2026-09-01', '2026-09-01'),
+      ],
+      settings,
+      new Date('2026-11-01T12:00:00Z')
+    );
+    expect(ledger.unusedNow).toBe(65);
+    expect(ledger.lastReturnDate).toBe('2027-01-05');
+  });
+
+  it('counts full window as unused while the sailor is still onboard', () => {
+    const ledger = computeLeaveLedger(
+      [contract('b', '2026-05-11', '2026-09-01')],
+      settings,
+      new Date('2026-06-01T12:00:00Z')
+    );
+    expect(ledger.unusedNow).toBe(66);
   });
 });

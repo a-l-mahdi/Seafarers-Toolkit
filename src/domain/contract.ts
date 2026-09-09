@@ -94,6 +94,19 @@ export interface ContractValidationResult {
   errors: string[];
 }
 
+/**
+ * A sailor cannot be on two vessels at once: ranges [join, signOff] must not
+ * overlap. Used both for form validation and as a safety net in the repository.
+ */
+export function contractRangesOverlap(
+  a: { joinDate: string; expectedSignOff: string; actualSignOff?: string | null },
+  b: { joinDate: string; expectedSignOff: string; actualSignOff?: string | null }
+): boolean {
+  const aEnd = a.actualSignOff ?? a.expectedSignOff;
+  const bEnd = b.actualSignOff ?? b.expectedSignOff;
+  return a.joinDate <= bEnd && b.joinDate <= aEnd;
+}
+
 export function validateContract(input: {
   joinDate: string;
   expectedSignOff: string;

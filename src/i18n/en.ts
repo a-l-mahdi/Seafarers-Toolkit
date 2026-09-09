@@ -57,6 +57,7 @@ const en = {
     leave: 'Leave',
     onLeave: 'On Leave',
     expectedReturn: 'Expected Return',
+    unusedLeave: 'Unused Leave',
     daysRemaining: 'Days Remaining',
     documents: 'Documents',
     valid: 'Valid',
@@ -160,6 +161,7 @@ const en = {
     },
     errors: {
       signOffBeforeJoin: 'Sign off date cannot be before join date',
+      overlap: 'A contract already exists in this period — you cannot be on two vessels at once.',
       vesselRequired: 'Please select a vessel',
       rankRequired: 'Please select a rank',
       joinRequired: 'Join date is required',

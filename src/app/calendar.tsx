@@ -5,13 +5,12 @@ import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/primitives';
 import { MonthYearPickerModal } from '@/components/ui/date-picker';
 import { useContracts, useDocuments, useLeaveSettings } from '@/hooks/queries';
-import { earnedLeaveDays } from '@/domain/leave';
+import { computeLeaveLedger } from '@/domain/leave';
 import { useSettingsStore } from '@/store/settings-store';
 import { useTheme } from '@/hooks/use-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Radius, Spacing } from '@/constants/theme';
 import {
-  diffInDays,
   gregorianToJalali,
   isoToDate,
   jalaliDaysInMonth,
@@ -86,6 +85,13 @@ export default function CalendarScreen() {
     [anchor, calendarPref, locale]
   );
 
+  // Leave ledger: earned leave + unused leave carried from previous contracts.
+  const leaveUntilByContract = useMemo(() => {
+    if (!contracts || !leaveSettings) return new Map<string, string>();
+    const ledger = computeLeaveLedger(contracts, leaveSettings);
+    return new Map(ledger.entries.map((e) => [e.contractId, e.leaveUntil]));
+  }, [contracts, leaveSettings]);
+
   const events = useMemo(() => {
     const map = new Map<string, Set<DayEvent>>();
     const add = (iso: string, event: DayEvent) => {
@@ -106,18 +112,16 @@ export default function CalendarScreen() {
         cursor = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
         guard += 1;
       }
-      // Leave earned proportionally to actual sea days, rounded up.
+      // Leave window: earned leave plus unused leave carried from previous
+      // contracts; stops at the next join date if the sailor reboards sooner.
       if (leaveSettings && end) {
-        const daysOnboard = Math.max(diffInDays(c.joinDate, end), 0);
-        const leaveDays = Math.min(earnedLeaveDays(leaveSettings, daysOnboard), 400);
+        const leaveUntil = leaveUntilByContract.get(c.id) ?? end;
         let leaveCursor = end;
-        let walked = 0;
         let guard2 = 0;
-        while (walked < leaveDays && guard2 < 420) {
+        while (leaveCursor < leaveUntil && guard2 < 420) {
           add(leaveCursor, 'leave');
           const [y, m, d] = leaveCursor.split('-').map(Number);
           leaveCursor = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
-          walked += 1;
           guard2 += 1;
         }
       }
@@ -126,7 +130,7 @@ export default function CalendarScreen() {
       if (doc.expiryDate) add(doc.expiryDate, 'expiry');
     }
     return map;
-  }, [contracts, documents, leaveSettings]);
+  }, [contracts, documents, leaveSettings, leaveUntilByContract]);
 
   /** Concrete items behind each day's events, shown in the day-detail list. */
   const dayDetails = useMemo(() => {

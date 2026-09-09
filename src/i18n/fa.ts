@@ -59,6 +59,7 @@ const fa: Translation = {
     leave: 'مرخصی',
     onLeave: 'در مرخصی',
     expectedReturn: 'بازگشت به کشتی',
+    unusedLeave: 'مرخصی استفاده‌نشده',
     daysRemaining: 'روز باقی‌مانده',
     documents: 'مدارک',
     valid: 'معتبر',
@@ -162,6 +163,7 @@ const fa: Translation = {
     },
     errors: {
       signOffBeforeJoin: 'تاریخ پایان نمی‌تواند قبل از تاریخ عزیمت باشد',
+      overlap: 'در این بازه از قبل یک قرارداد ثبت شده است — دریانورد نمی‌تواند همزمان روی دو کشتی باشد.',
       vesselRequired: 'انتخاب کشتی الزامی است',
       rankRequired: 'انتخاب رتبه الزامی است',
       joinRequired: 'تاریخ عزیمت الزامی است',

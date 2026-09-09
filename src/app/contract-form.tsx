@@ -8,7 +8,7 @@ import { DatePickerField } from '@/components/ui/date-picker';
 import { ContractFilesSection } from '@/components/contract-files';
 import { FileGallery, type DisplayFile } from '@/components/file-gallery';
 import { useAddTripFile, useContracts, useDeleteContract, useRanks, useSaveContract, useVessels } from '@/hooks/queries';
-import { expectedSignOff, type DurationInput } from '@/domain/contract';
+import { expectedSignOff, contractRangesOverlap, type DurationInput } from '@/domain/contract';
 import { isISODate } from '@/utils/date';
 import { importUriFile, isAllowedFileType, pickDocumentFile } from '@/services/file-storage';
 import { capturePhoto, pickPhoto } from '@/services/image-capture';
@@ -40,6 +40,7 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
   const insets = useSafeAreaInsets();
   const { data: vessels } = useVessels();
   const { data: ranks } = useRanks();
+  const { data: contracts } = useContracts();
   const save = useSaveContract();
   const remove = useDeleteContract();
   const addTripFile = useAddTripFile();
@@ -114,6 +115,15 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
     if (isISODate(actualSignOff) && isISODate(joinDate) && actualSignOff <= joinDate) {
       errs.push(t('contracts.errors.signOffBeforeJoin'));
     }
+    // A sailor cannot be on two vessels at once.
+    if (
+      preview &&
+      (contracts ?? []).some(
+        (c) => c.id !== initial?.id && contractRangesOverlap(c, { joinDate, expectedSignOff: preview, actualSignOff: null })
+      )
+    ) {
+      errs.push(t('contracts.errors.overlap'));
+    }
     setErrors(errs);
     if (errs.length > 0 || !preview) return;
     setSaving(true);
@@ -153,6 +163,10 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
         }
       }
       router.back();
+    } catch (err) {
+      if (err instanceof Error && err.message === 'CONTRACT_OVERLAP') {
+        setErrors([t('contracts.errors.overlap')]);
+      }
     } finally {
       setSaving(false);
     }

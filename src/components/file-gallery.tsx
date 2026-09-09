@@ -96,7 +96,6 @@ function ViewerModal({
   onRemove?: (id: string, uri: string) => void;
 }) {
   const { t } = useTranslation();
-  const colors = useTheme();
 
   const doRemove = () => {
     if (file && onRemove) {

@@ -9,11 +9,13 @@ import {
   useNotifications,
 } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Radius, Spacing } from '@/constants/theme';
 
 export default function NotificationsScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const { data: notifications } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
@@ -34,7 +36,7 @@ export default function NotificationsScreen() {
           ),
         }}
       />
-      <ScrollView nestedScrollEnabled contentContainerStyle={styles.list}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={[styles.list, { paddingBottom: Spacing.xxl + insets.bottom }]}>
         {(notifications ?? []).length === 0 ? (
           <EmptyState title={t('notifications.empty')} />
         ) : null}

@@ -6,11 +6,13 @@ import { useContracts, useDocuments, useProfile, useRanks, useRequiredSeaTime, u
 import { contractCountdown } from '@/domain/contract';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '@/constants/theme';
 
 export default function ReportsScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const formatDate = useFormattedDate();
   const { data: seaTime } = useSeaTimeSummary();
   const { data: contracts } = useContracts();
@@ -22,7 +24,7 @@ export default function ReportsScreen() {
   const rankName = (id: string | null) => ranks?.find((r) => r.id === id)?.name ?? '—';
 
   return (
-    <ScrollView nestedScrollEnabled contentContainerStyle={styles.container} style={{ backgroundColor: colors.background }}>
+    <ScrollView nestedScrollEnabled contentContainerStyle={[styles.container, { paddingBottom: Spacing.xxl + insets.bottom }]} style={{ backgroundColor: colors.background }}>
       <Stack.Screen
         options={{
           headerShown: true,

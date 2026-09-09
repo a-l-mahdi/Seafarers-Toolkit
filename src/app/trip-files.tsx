@@ -6,6 +6,7 @@ import { HeaderBar } from '@/components/ui/form';
 import { ContractFilesSection } from '@/components/contract-files';
 import { useContracts } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '@/constants/theme';
 
 /** Trip documents viewer — opens from a sea-time record to show the contract
@@ -14,6 +15,7 @@ export default function TripFilesScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const { contractId } = useLocalSearchParams<{ contractId: string }>();
   const { data: contracts } = useContracts();
   const contract = contracts?.find((c) => c.id === contractId);
@@ -22,7 +24,7 @@ export default function TripFilesScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('tripFiles.title')} onBack={() => router.back()} />
-      <ScrollView nestedScrollEnabled contentContainerStyle={styles.form}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}>
         <Card>
           <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}>
             {contract?.vesselName ?? '—'}

@@ -63,7 +63,7 @@ export default function RootLayout() {
           <SafeAreaProvider>
             <SafeAreaView
               style={{ flex: 1, backgroundColor: navigationTheme.colors.background }}
-              edges={['top', 'bottom']}
+              edges={['top']}
             >
               <Stack
                 screenOptions={{

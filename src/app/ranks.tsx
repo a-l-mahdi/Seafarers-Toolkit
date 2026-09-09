@@ -6,12 +6,14 @@ import { Button, Card } from '@/components/ui/primitives';
 import { LabeledInput, Select } from '@/components/ui/form';
 import { useCreateRank, useDeleteRank, useRanks } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '@/constants/theme';
 import type { Department } from '@/types/domain';
 
 export default function RanksScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const { data: ranks } = useRanks();
   const create = useCreateRank();
   const remove = useDeleteRank();
@@ -41,7 +43,7 @@ export default function RanksScreen() {
   const departments: Department[] = ['deck', 'engine', 'electro', 'other'];
 
   return (
-    <ScrollView nestedScrollEnabled contentContainerStyle={styles.container} style={{ backgroundColor: colors.background }}>
+    <ScrollView nestedScrollEnabled contentContainerStyle={[styles.container, { paddingBottom: Spacing.xxl + insets.bottom }]} style={{ backgroundColor: colors.background }}>
       <Stack.Screen
         options={{
           headerShown: true,

@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { Card, EmptyState, FieldRow } from '@/components/ui/primitives';
 import { useDeleteSeaTimeRecord, useProfile, useRanks, useSeaTimeRecords, useSeaTimeSummary } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { Radius, Spacing } from '@/constants/theme';
 
 export default function SeaTimeScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const formatDate = useFormattedDate();
   const router = useRouter();
   const { data: summary } = useSeaTimeSummary();
@@ -43,7 +45,7 @@ export default function SeaTimeScreen() {
         }}
       />
       <FlatList nestedScrollEnabled
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: Spacing.xxl + insets.bottom }]}
         ListHeaderComponent={
           <>
             <Card>

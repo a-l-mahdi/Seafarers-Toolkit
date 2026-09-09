@@ -25,6 +25,7 @@ import { capturePhoto, pickPhoto } from '@/services/image-capture';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { DEFAULT_VALIDITY_DAYS } from '@/domain/document-status';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '@/constants/theme';
 import type { DocumentListRow } from '@/hooks/queries';
 
@@ -55,6 +56,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const formatDate = useFormattedDate();
   const { data: types } = useDocumentTypes();
   const save = useSaveDocument();
@@ -169,7 +171,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
         onBack={() => router.back()}
         action={initial ? { label: t('common.delete'), onPress: confirmDelete } : undefined}
       />
-      <ScrollView nestedScrollEnabled contentContainerStyle={styles.form}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}>
         {initial ? (
           <View style={styles.statusRow}>
             <Badge label={t(`documents.status.${initial.status}`)} tone={STATUS_TONE[initial.status]} />
@@ -273,7 +275,7 @@ function DocumentFilesSection({
 
 function AddLink({ label, onPress }: { label: string; onPress: () => void }) {
   const colors = useTheme();
-  return (
+ return (
     <Text style={{ color: colors.primary, fontWeight: '600' }} onPress={onPress}>
       + {label}
     </Text>

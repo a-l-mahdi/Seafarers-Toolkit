@@ -7,6 +7,7 @@ import { HeaderBar, LabeledInput, Select } from '@/components/ui/form';
 import { DatePickerField } from '@/components/ui/date-picker';
 import { useProfile, useRanks, useSaveProfile } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '@/constants/theme';
 import type { Department, Profile } from '@/types/domain';
 
@@ -22,6 +23,7 @@ function ProfileForm({ initial }: { initial: Profile | null }) {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const { data: ranks } = useRanks();
   const save = useSaveProfile();
 
@@ -59,7 +61,7 @@ function ProfileForm({ initial }: { initial: Profile | null }) {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('profile.title')} onBack={() => router.back()} />
-      <ScrollView nestedScrollEnabled contentContainerStyle={styles.form}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}>
         <LabeledInput label={t('profile.firstName')} value={firstName} onChangeText={setFirstName} />
         <LabeledInput label={t('profile.lastName')} value={lastName} onChangeText={setLastName} />
         <DatePickerField label={t('profile.dateOfBirth')} value={dateOfBirth} onChange={setDateOfBirth} />

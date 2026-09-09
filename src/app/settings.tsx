@@ -8,6 +8,7 @@ import { useLeaveSettings, useSaveLeaveSettings } from '@/hooks/queries';
 import { useSettingsStore } from '@/store/settings-store';
 import { changeLocale, isRTL } from '@/i18n';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '@/constants/theme';
 import * as Updates from 'expo-updates';
 import { createBackup, restoreBackup } from '@/services/backup';
@@ -16,6 +17,7 @@ import type { LeaveSettings } from '@/types/domain';
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const { locale, theme, calendar, setLocale, setTheme, setCalendar } = useSettingsStore();
 
   const applyLocale = async (next: 'en' | 'fa') => {
@@ -26,7 +28,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView nestedScrollEnabled contentContainerStyle={styles.container} style={{ backgroundColor: colors.background }}>
+    <ScrollView nestedScrollEnabled contentContainerStyle={[styles.container, { paddingBottom: Spacing.xxl + insets.bottom }]} style={{ backgroundColor: colors.background }}>
       <Stack.Screen
         options={{
           headerShown: true,

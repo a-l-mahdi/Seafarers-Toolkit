@@ -7,6 +7,7 @@ import { HeaderBar, LabeledInput } from '@/components/ui/form';
 import { useSaveVessel, useVessels } from '@/hooks/queries';
 import { validateIMO } from '@/database/repositories/vessels-repository';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '@/constants/theme';
 import type { Vessel } from '@/types/domain';
 
@@ -29,6 +30,7 @@ function VesselForm({ initial }: { initial: Vessel | null }) {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const save = useSaveVessel();
 
   const [name, setName] = useState(initial?.name ?? '');
@@ -67,7 +69,7 @@ function VesselForm({ initial }: { initial: Vessel | null }) {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('vessels.add')} onBack={() => router.back()} />
-      <ScrollView nestedScrollEnabled contentContainerStyle={styles.form}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}>
         <LabeledInput label={t('vessels.name')} value={name} onChangeText={setName} />
         <LabeledInput label={t('vessels.imo')} value={imo} onChangeText={setImo} keyboardType="numeric" placeholder="1234567" />
         <LabeledInput label={t('vessels.type')} value={type} onChangeText={setType} placeholder="Container Ship" />

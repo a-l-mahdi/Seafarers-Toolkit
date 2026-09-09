@@ -8,12 +8,14 @@ import { DatePickerField } from '@/components/ui/date-picker';
 import { useProfile, useRanks, useSaveSeaTimeRecord } from '@/hooks/queries';
 import { isISODate } from '@/utils/date';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '@/constants/theme';
 
 export default function SeaTimeFormScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const { data: ranks } = useRanks();
   const { data: profile } = useProfile();
   const save = useSaveSeaTimeRecord();
@@ -57,7 +59,7 @@ export default function SeaTimeFormScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('seaTime.addManual')} onBack={() => router.back()} />
-      <ScrollView nestedScrollEnabled contentContainerStyle={styles.form}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}>
         <Select
           label={t('seaTime.rank')}
           value={rankId}

@@ -10,12 +10,14 @@ import { capturePhoto, pickPhoto } from '@/services/image-capture';
 import { parseDocumentText } from '@/services/ocr';
 import { importPickedFile } from '@/services/file-storage';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '@/constants/theme';
 
 export default function DocumentScanScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const { data: types } = useDocumentTypes();
   const createType = useCreateDocumentType();
   const save = useSaveDocument();
@@ -117,7 +119,7 @@ export default function DocumentScanScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('documents.scan.title')} onBack={() => router.back()} />
-      <ScrollView nestedScrollEnabled contentContainerStyle={styles.form}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}>
         <Card>
           <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: Spacing.md }}>
             {t('documents.scan.hint')}

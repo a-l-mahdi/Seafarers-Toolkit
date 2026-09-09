@@ -6,11 +6,13 @@ import { Button, EmptyState } from '@/components/ui/primitives';
 import { LabeledInput } from '@/components/ui/form';
 import { useDeleteVessel, useVessels } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Radius, Spacing } from '@/constants/theme';
 
 export default function VesselsScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const { data: vessels } = useVessels();
   const [search, setSearch] = useState('');
 
@@ -37,7 +39,7 @@ export default function VesselsScreen() {
         </Link>
       </View>
       <FlatList nestedScrollEnabled
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: Spacing.xxl + insets.bottom }]}
         data={filtered}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <VesselRow id={item.id} name={item.name} imo={item.imo} flag={item.flag} type={item.type} />}
@@ -50,7 +52,7 @@ export default function VesselsScreen() {
 function VesselRow(props: { id: string; name: string; imo: string | null; flag: string | null; type: string | null }) {
   const { t } = useTranslation();
   const colors = useTheme();
-  const remove = useDeleteVessel();
+ const remove = useDeleteVessel();
 
   const confirmDelete = () => {
     Alert.alert(t('common.delete'), t('common.confirmDelete'), [

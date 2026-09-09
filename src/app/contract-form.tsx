@@ -13,6 +13,7 @@ import { isISODate } from '@/utils/date';
 import { importUriFile, isAllowedFileType, pickDocumentFile } from '@/services/file-storage';
 import { capturePhoto, pickPhoto } from '@/services/image-capture';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '@/constants/theme';
 import type { ContractListRow } from '@/hooks/queries';
 import type { DurationMode } from '@/types/domain';
@@ -36,6 +37,7 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const { data: vessels } = useVessels();
   const { data: ranks } = useRanks();
   const save = useSaveContract();
@@ -140,7 +142,7 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('contracts.add')} onBack={() => router.back()} />
-      <ScrollView nestedScrollEnabled contentContainerStyle={styles.form}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}>
         <Select
           label={t('contracts.vessel')}
           value={vesselId}

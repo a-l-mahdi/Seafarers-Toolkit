@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/primitives';
 import { useContracts, useDocuments, useLeaveSettings } from '@/hooks/queries';
 import { expectedReturnDate } from '@/domain/leave';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Radius, Spacing } from '@/constants/theme';
 
 type DayEvent = 'onboard' | 'leave' | 'expiry' | 'contract_start' | 'contract_end';
@@ -13,6 +14,7 @@ type DayEvent = 'onboard' | 'leave' | 'expiry' | 'contract_start' | 'contract_en
 export default function CalendarScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -94,7 +96,7 @@ export default function CalendarScreen() {
   };
 
   return (
-    <ScrollView nestedScrollEnabled contentContainerStyle={styles.container} style={{ backgroundColor: colors.background }}>
+    <ScrollView nestedScrollEnabled contentContainerStyle={[styles.container, { paddingBottom: Spacing.xxl + insets.bottom }]} style={{ backgroundColor: colors.background }}>
       <Stack.Screen
         options={{
           headerShown: true,

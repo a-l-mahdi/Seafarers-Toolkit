@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -30,27 +30,29 @@ export default function MoreScreen() {
           headerStyle: { backgroundColor: colors.background },
         }}
       />
-      <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        {ITEMS.map((item, index) => (
-          <Link key={item.href} href={item.href as never} asChild>
-            <Pressable
-              style={[
-                styles.item,
-                { borderBottomColor: colors.border },
-                index === ITEMS.length - 1 && styles.lastItem,
-              ]}
-            >
-              <View style={styles.row}>
-                <View style={[styles.iconWrap, { backgroundColor: colors.primaryMuted }]}>
-                  <Ionicons name={item.icon} size={22} color={colors.primary} />
+      <ScrollView nestedScrollEnabled contentContainerStyle={styles.content} style={{ backgroundColor: colors.background }}>
+        <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {ITEMS.map((item, index) => (
+            <Link key={item.href} href={item.href as never} asChild>
+              <Pressable
+                style={[
+                  styles.item,
+                  { borderBottomColor: colors.border },
+                  index === ITEMS.length - 1 && styles.lastItem,
+                ]}
+              >
+                <View style={styles.row}>
+                  <View style={[styles.iconWrap, { backgroundColor: colors.primaryMuted }]}>
+                    <Ionicons name={item.icon} size={22} color={colors.primary} />
+                  </View>
+                  <Text style={[styles.label, { color: colors.text }]}>{t(toLabelKey(item.href))}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                 </View>
-                <Text style={[styles.label, { color: colors.text }]}>{t(toLabelKey(item.href))}</Text>
-                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-              </View>
-            </Pressable>
-          </Link>
-        ))}
-      </View>
+              </Pressable>
+            </Link>
+          ))}
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -80,6 +82,7 @@ function toLabelKey(href: string): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: Spacing.lg, paddingTop: Spacing.md },
+  content: { flexGrow: 1, paddingBottom: Spacing.xl },
   list: {
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,

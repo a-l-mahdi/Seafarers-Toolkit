@@ -158,10 +158,13 @@ function LeavePatternCard() {
   const leave = leaveDays ?? String(leaveSettings.leaveDays);
 
   const save = () => {
+    const normalize = (v: string) => parseFloat(v.replace(/[٫,]/g, '.').trim());
+    const onboardNum = Math.round(normalize(onboard));
+    const leaveNum = normalize(leave);
     const next: LeaveSettings = {
       ...leaveSettings,
-      onboardDays: parseInt(onboard, 10) || 60,
-      leaveDays: parseInt(leave, 10) || 30,
+      onboardDays: Number.isFinite(onboardNum) && onboardNum > 0 ? onboardNum : 60,
+      leaveDays: Number.isFinite(leaveNum) && leaveNum >= 0 ? Math.round(leaveNum * 10) / 10 : 30,
     };
     saveLeave.mutate(next);
     setOnboardDays(null);
@@ -176,6 +179,9 @@ function LeavePatternCard() {
       </Text>
       <LabeledInput label={t('settings.onboardDays')} value={onboard} onChangeText={setOnboardDays} keyboardType="numeric" />
       <LabeledInput label={t('settings.leaveDays')} value={leave} onChangeText={setLeaveDays} keyboardType="numeric" />
+      <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 8 }}>
+        {t('settings.leaveDecimalHint')}
+      </Text>
       <Button label={t('common.save')} onPress={save} variant="secondary" />
     </Card>
   );

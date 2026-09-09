@@ -6,7 +6,7 @@ import { useContracts, useDocuments, useLeaveSettings, useProfile, useRanks, use
 import { careerProgress, estimatedQualificationDate } from '@/domain/career';
 import { contractCountdown } from '@/domain/contract';
 import { expectedReturnDate, daysUntilReturn } from '@/domain/leave';
-import { todayISO } from '@/utils/date';
+import { todayISO, diffInDays } from '@/utils/date';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
@@ -42,13 +42,16 @@ export default function DashboardScreen() {
   const docStats = { valid: 0, expiring_soon: 0, not_valid: 0, expired: 0, no_expiry: 0 };
   for (const doc of documents ?? []) docStats[doc.status] += 1;
 
-  const lastSignOff = contracts
+  const lastOffContract = contracts
     ?.filter((c) => c.actualSignOff)
-    .map((c) => c.actualSignOff!)
-    .sort()
+    .sort((a, b) => (a.actualSignOff! < b.actualSignOff! ? -1 : 1))
     .at(-1) ?? null;
+  const lastSignOff = lastOffContract?.actualSignOff ?? null;
   const onLeave = lastSignOff !== null && (!activeContract || activeContract.joinDate > today);
-  const returnDate = lastSignOff && leaveSettings ? expectedReturnDate(lastSignOff, leaveSettings) : null;
+  const returnDate =
+    lastOffContract && lastSignOff && leaveSettings
+      ? expectedReturnDate(lastSignOff, leaveSettings, diffInDays(lastOffContract.joinDate, lastSignOff))
+      : null;
 
   const alerts: { tone: 'danger' | 'warning' | 'success'; text: string }[] = [];
   if (docStats.expired > 0) alerts.push({ tone: 'danger', text: `${docStats.expired} ${t('documents.status.expired')}` });

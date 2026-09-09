@@ -259,6 +259,7 @@ const fa: Translation = {
     leaveMode: 'روش محاسبه',
     onboardDays: 'روزهای روی کشتی',
     leaveDays: 'روزهای مرخصی',
+    leaveDecimalHint: 'می‌توانید مقدار اعشاری وارد کنید (مثل 17.5). مرخصی به نسبت روزهای واقعی دریا محاسبه و به بالا رند می‌شود.',
     manualLeaveStart: 'شروع مرخصی',
     manualLeaveEnd: 'پایان مرخصی',
     modes: {

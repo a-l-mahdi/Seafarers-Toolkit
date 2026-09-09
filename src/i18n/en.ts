@@ -257,6 +257,7 @@ const en = {
     leaveMode: 'Mode',
     onboardDays: 'Onboard Days',
     leaveDays: 'Leave Days',
+    leaveDecimalHint: 'Decimals are allowed (e.g. 17.5). Leave is prorated by actual sea days and rounded up.',
     manualLeaveStart: 'Leave Start',
     manualLeaveEnd: 'Leave End',
     modes: {

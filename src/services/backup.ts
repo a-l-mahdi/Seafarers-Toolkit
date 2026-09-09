@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { openDatabase } from '@/database/db';
+import { obfuscateText, deobfuscateText } from '@/utils/xor-codec';
 
 const TABLES = [
   'ranks',
@@ -64,14 +65,16 @@ export async function createBackup(): Promise<{ count: number; size: number }> {
   const backup: BackupFile = { version: BACKUP_VERSION, exportedAt: new Date().toISOString(), tables, files };
   const json = JSON.stringify(backup);
 
-  // Offer a share/save sheet so the user can keep the file anywhere (even SD card).
-  const backupPath = `${FileSystem.cacheDirectory ?? ''}seafarers-backup-${Date.now()}.json`;
-  await FileSystem.writeAsStringAsync(backupPath, json, { encoding: FileSystem.EncodingType.UTF8 });
+  // Obfuscated (XOR + base64) so the shared file is not readable as plain JSON.
+  const backupPath = `${FileSystem.cacheDirectory ?? ''}seafarers-backup-${Date.now()}.sftk`;
+  await FileSystem.writeAsStringAsync(backupPath, obfuscateText(json), {
+    encoding: FileSystem.EncodingType.Base64,
+  });
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(backupPath, {
-      mimeType: 'application/json',
+      mimeType: 'application/octet-stream',
       dialogTitle: 'Seafarers Toolkit Backup',
-      UTI: 'public.json',
+      UTI: 'public.data',
     });
   }
   return { count, size: json.length };
@@ -89,7 +92,13 @@ export async function restoreBackup(): Promise<{ count: number; files: number }>
   if (picked.canceled || picked.assets.length === 0) return { count: 0, files: 0 };
   const uri = picked.assets[0].uri;
 
-  const json = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.UTF8 });
+  // New backups are XOR-obfuscated; old plain-JSON backups (starting with "{") still restore.
+  const raw = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.UTF8 });
+  let json = raw;
+  if (!raw.trim().startsWith('{')) {
+    const payload = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+    json = deobfuscateText(payload);
+  }
   const backup = JSON.parse(json) as BackupFile;
   if (!backup || backup.version !== BACKUP_VERSION || !backup.tables) {
     throw new Error('INVALID_BACKUP');

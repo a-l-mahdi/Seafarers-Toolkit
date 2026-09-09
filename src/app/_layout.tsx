@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { I18nManager } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { I18nManager, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Colors } from '@/constants/theme';
@@ -61,9 +61,8 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={navigationTheme}>
           <SafeAreaProvider>
-            <SafeAreaView
+            <View
               style={{ flex: 1, backgroundColor: navigationTheme.colors.background }}
-              edges={['top']}
             >
               <Stack
                 screenOptions={{
@@ -80,7 +79,7 @@ export default function RootLayout() {
                 <Stack.Screen name="sea-time-form" options={{ presentation: 'modal' }} />
                 <Stack.Screen name="profile-form" options={{ presentation: 'modal' }} />
               </Stack>
-            </SafeAreaView>
+            </View>
           </SafeAreaProvider>
         </ThemeProvider>
       </QueryClientProvider>

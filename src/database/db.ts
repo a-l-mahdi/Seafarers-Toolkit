@@ -225,6 +225,8 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
       'Advanced Fire Fighting',
       'Proficiency in Survival Craft',
       'Visa',
+      'Basic Training for Liquid Gas Tanker',
+      'Basic Training for Oil and Chemical Tanker',
     ];
     for (const name of defaultTypes) {
       await db.runAsync(
@@ -233,5 +235,18 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
         name
       );
     }
+  }
+
+  // Ensure newer default document types also exist on already-seeded installs.
+  const laterDefaultTypes = [
+    'Basic Training for Liquid Gas Tanker',
+    'Basic Training for Oil and Chemical Tanker',
+  ];
+  for (const name of laterDefaultTypes) {
+    await db.runAsync(
+      'INSERT OR IGNORE INTO document_types (id, name, is_default) VALUES (?, ?, 1)',
+      `doctype_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+      name
+    );
   }
 }

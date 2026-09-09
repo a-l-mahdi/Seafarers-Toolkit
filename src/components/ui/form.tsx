@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Spacing } from '@/constants/theme';
 
@@ -120,8 +121,9 @@ export function HeaderBar({
   action?: { label: string; onPress: () => void };
 }) {
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: Spacing.md + insets.top }]}>
       {onBack ? (
         <Pressable onPress={onBack} hitSlop={12}>
           <Text style={[styles.back, { color: colors.primary }]}>‹</Text>
@@ -164,7 +166,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingBottom: Spacing.md,
     gap: Spacing.sm,
   },
   headerTitle: { fontSize: 17, fontWeight: '700', flex: 1, textAlign: 'center' },

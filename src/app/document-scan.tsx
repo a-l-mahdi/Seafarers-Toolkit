@@ -112,6 +112,7 @@ export default function DocumentScanScreen() {
     if (!typeName) return;
     const created = await createType.mutateAsync(typeName);
     setTypeId(created.id);
+    setName(created.name);
     setNewTypeName('');
   };
 
@@ -151,7 +152,12 @@ export default function DocumentScanScreen() {
             label={t('documents.type')}
             value={typeId}
             options={(types ?? []).map((ty) => ({ id: ty.id, label: ty.name }))}
-            onSelect={setTypeId}
+            onSelect={(id) => {
+              setTypeId(id);
+              // Pre-fill the document name from the selected type; the user can still edit it.
+              const selected = (types ?? []).find((ty) => ty.id === id);
+              if (selected) setName(selected.name);
+            }}
           />
           <LabeledInput
             label={t('documents.scan.newType')}

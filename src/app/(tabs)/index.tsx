@@ -9,12 +9,14 @@ import { expectedReturnDate, daysUntilReturn } from '@/domain/leave';
 import { todayISO, diffInDays } from '@/utils/date';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '@/constants/theme';
 
 export default function DashboardScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const formatDate = useFormattedDate();
   const { data: profile } = useProfile();
   const { data: ranks } = useRanks();
@@ -61,7 +63,7 @@ export default function DashboardScreen() {
   const countdown = activeContract ? contractCountdown(activeContract) : null;
 
   return (
-    <ScrollView nestedScrollEnabled contentContainerStyle={styles.container} style={{ backgroundColor: colors.background }}>
+    <ScrollView nestedScrollEnabled contentContainerStyle={[styles.container, { paddingTop: Spacing.lg + insets.top }]} style={{ backgroundColor: colors.background }}>
       <Text style={[styles.greeting, { color: colors.text }]}>
         {profile ? t('dashboard.greeting', { name: profile.firstName || profile.lastName }) : t('dashboard.greetingGuest')}
       </Text>

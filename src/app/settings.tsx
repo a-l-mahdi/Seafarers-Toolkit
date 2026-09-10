@@ -11,7 +11,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Radius, Spacing } from '@/constants/theme';
 import * as Updates from 'expo-updates';
-import { createBackup, restoreBackup, type ProgressFn } from '@/services/backup';
+import { createBackup, pickBackupFile, restoreBackup, type ProgressFn } from '@/services/backup';
 import type { LeaveSettings } from '@/types/domain';
 
 export default function SettingsScreen() {
@@ -93,6 +93,7 @@ function BackupCard() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  const [pickedFile, setPickedFile] = useState<{ uri: string; name: string } | null>(null);
   const [dialog, setDialog] = useState<'backup' | 'restore' | null>(null);
 
   const runProgress: ProgressFn = (fraction) => setProgress(fraction);
@@ -113,14 +114,21 @@ function BackupCard() {
     }
   };
 
-  const doRestore = (password: string) => {
-    setDialog(null);
-    setBusy(true);
+  // Commercial flow: choose file → its name appears below → press Restore →
+  // enter the backup password → confirm overwrite → restore with progress.
+  const chooseFile = async () => {
     setStatus(null);
+    const picked = await pickBackupFile();
+    if (picked) setPickedFile(picked);
+  };
+
+  const doRestore = (password: string) => {
+    if (!pickedFile) return;
+    setBusy(true);
     setProgress(0);
     const run = async () => {
       try {
-        const { count, files } = await restoreBackup(password, runProgress);
+        const { count, files } = await restoreBackup(pickedFile.uri, password, runProgress);
         setStatus(t('settings.restoreDone', { count, files }));
       } catch (err) {
         setStatus(
@@ -144,8 +152,24 @@ function BackupCard() {
       </Text>
       <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
         <Button label={t('settings.backup')} onPress={() => setDialog('backup')} disabled={busy} style={{ flex: 1 }} />
-        <Button label={t('settings.restore')} onPress={() => setDialog('restore')} variant="secondary" disabled={busy} style={{ flex: 1 }} />
+        <Button
+          label={pickedFile ? t('settings.restore') : t('settings.chooseFile')}
+          onPress={() => (pickedFile ? setDialog('restore') : void chooseFile())}
+          variant="secondary"
+          disabled={busy}
+          style={{ flex: 1 }}
+        />
       </View>
+      {pickedFile ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginTop: Spacing.sm }}>
+          <Text style={{ color: colors.textMuted, fontSize: 12, flex: 1 }} numberOfLines={1}>
+            {pickedFile.name}
+          </Text>
+          <Pressable onPress={() => setPickedFile(null)} hitSlop={6}>
+            <Text style={{ color: colors.danger, fontSize: 13 }}>{t('settings.changeFile')}</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {progress !== null ? (
         <View style={{ marginTop: Spacing.md }}>
           <ProgressBar progress={progress} tone="primary" />
@@ -169,7 +193,7 @@ function BackupCard() {
           hint={t('settings.backupPasswordHintRestore')}
           single
           onCancel={() => setDialog(null)}
-          onConfirm={(password) => doRestore(password)}
+          onConfirm={doRestore}
         />
       ) : null}
     </Card>

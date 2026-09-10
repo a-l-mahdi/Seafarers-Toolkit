@@ -2,8 +2,8 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button, Card, EmptyState, FieldRow, ProgressBar } from '@/components/ui/primitives';
-import { useContracts, useDocuments, useLeaveSettings, useProfile, useRanks, useRequiredSeaTime, useSeaTimeSummary } from '@/hooks/queries';
-import { careerProgress, estimatedQualificationDate, isTopRank } from '@/domain/career';
+import { useContracts, useDocuments, useLeaveSettings, useProfile, useRanks, useSeaTimeSummary } from '@/hooks/queries';
+import { careerProgress, estimatedQualificationDate, isTopRank, nextRankId, promotionDaysFromMonths } from '@/domain/career';
 import { contractCountdown, contractProgressColor } from '@/domain/contract';
 import { computeLeaveLedger, daysUntilReturn } from '@/domain/leave';
 import { todayISO } from '@/utils/date';
@@ -24,16 +24,18 @@ export default function DashboardScreen() {
   const { data: documents } = useDocuments();
   const { data: seaTime } = useSeaTimeSummary();
   const { data: leaveSettings } = useLeaveSettings();
-  const { data: requiredDays } = useRequiredSeaTime(profile?.currentRankId ?? null, profile?.nextRankId ?? null);
 
   const rankName = (id: string | null) => ranks?.find((r) => r.id === id)?.name ?? null;
+  const currentRank = ranks?.find((r) => r.id === profile?.currentRankId) ?? null;
+  const atTopRank = isTopRank(profile?.currentRankId ?? null, ranks ?? []);
+  const nextId = nextRankId(profile?.currentRankId ?? null, ranks ?? []);
   const activeContract = contracts?.find((c) => c.status === 'active' && !c.actualSignOff) ?? null;
   const today = todayISO();
 
   const completedByRank = seaTime?.byRank.find(
     (r) => profile?.currentRankId && r.rankId === profile.currentRankId
   );
-  const required = requiredDays ?? 365;
+  const required = promotionDaysFromMonths(currentRank?.promotionMonths ?? null);
   const progress = careerProgress(completedByRank?.days ?? 0, required);
   const estimated = estimatedQualificationDate(
     progress.remaining,
@@ -82,7 +84,7 @@ export default function DashboardScreen() {
           value={
             isTopRank(profile?.currentRankId ?? null, ranks ?? [])
               ? t('career.topRank')
-              : rankName(profile?.nextRankId ?? null) ?? t('common.notSet')
+              : rankName(nextId) ?? t('common.notSet')
           }
         />
         <FieldRow
@@ -98,12 +100,18 @@ export default function DashboardScreen() {
           label={t('career.completed')}
           value={`${completedByRank?.days ?? 0} / ${required} ${t('common.days')}`}
         />
-        <FieldRow label={t('career.remaining')} value={`${progress.remaining} ${t('common.days')}`} />
-        <ProgressBar progress={progress.progress} tone={progress.complete ? 'success' : 'primary'} />
-        <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>
-          {Math.round(progress.progress * 100)}%
-          {estimated ? ` · ${t('career.estimatedDate')}: ${formatDate(estimated)}` : ''}
-        </Text>
+        {atTopRank ? (
+          <Text style={{ color: colors.success, fontWeight: '600' }}>{t('career.topRank')}</Text>
+        ) : (
+          <>
+            <FieldRow label={t('career.remaining')} value={`${progress.remaining} ${t('common.days')}`} />
+            <ProgressBar progress={progress.progress} tone={progress.complete ? 'success' : 'primary'} />
+            <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>
+              {Math.round(progress.progress * 100)}%
+              {estimated ? ` · ${t('career.estimatedDate')}: ${formatDate(estimated)}` : ''}
+            </Text>
+          </>
+        )}
       </Card>
 
       <Card>

@@ -234,6 +234,7 @@ const en = {
     topRank: 'You are at the top rank of your department',
     addSeaTimeHint: 'Sea time is calculated automatically from your contracts. Add or complete a contract to grow it.',
     goToContracts: 'Go to Contracts',
+    requirementInRanks: 'Promotion sea time is set in the Ranks screen, next to each rank (in months).',
   },
   calendar: {
     title: 'Calendar',
@@ -295,6 +296,8 @@ const en = {
     passwordRequired: 'Enter a password',
     passwordMismatch: 'Passwords do not match',
     wrongPassword: 'Wrong backup password — nothing was restored.',
+    chooseFile: 'Choose File',
+    changeFile: 'Change file',
   },
   notifications: {
     title: 'Notifications',
@@ -312,6 +315,10 @@ const en = {
     add: 'Add Rank',
     name: 'Rank Name',
     level: 'Level',
+    edit: 'Edit Ranks',
+    editHint: 'In edit mode you can rename, reorder, delete or add ranks and set the promotion sea time (months) per rank.',
+    promotionMonths: 'Sea time to next rank (months)',
+    emptyDepartment: 'No ranks in this department — add one in edit mode.',
     errors: {
       nameRequired: 'Rank name is required',
     },

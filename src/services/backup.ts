@@ -2,7 +2,14 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { openDatabase } from '@/database/db';
-import { obfuscateText, deobfuscateText, obfuscateWithPassword, deobfuscateWithPassword } from '@/utils/xor-codec';
+import {
+  obfuscateText,
+  deobfuscateText,
+  obfuscateWithPassword,
+  deobfuscateWithPassword,
+  base64ToBytes,
+  utf8BytesToString,
+} from '@/utils/xor-codec';
 
 const TABLES = [
   'ranks',
@@ -112,34 +119,50 @@ export async function createBackup(
   return { count, size: json.length };
 }
 
-/** Restores a backup file picked by the user. Overwrites current data. */
+/** Opens the document picker so the user chooses a backup file first. */
+export async function pickBackupFile(): Promise<{ uri: string; name: string } | null> {
+  const picked = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+  if (picked.canceled || picked.assets.length === 0) return null;
+  const asset = picked.assets[0];
+  return { uri: asset.uri, name: asset.name ?? 'backup' };
+}
+
+/**
+ * Restores the previously picked backup file (uri from pickBackupFile).
+ * Overwrites current data. Plain-JSON (very old) backups restore without a
+ * password; obfuscated ones require the exact backup password. The file is
+ * always read as base64 bytes — never as UTF-8 text (binary-safe).
+ */
 export async function restoreBackup(
+  fileUri: string,
   password: string,
   onProgress?: ProgressFn
 ): Promise<{ count: number; files: number }> {
-  const picked = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
-  if (picked.canceled || picked.assets.length === 0) return { count: 0, files: 0 };
-  const uri = picked.assets[0].uri;
+  const uri = fileUri;
 
-  // Plain-JSON backups (very old) restore without a password; everything else
-  // must be deobfuscated with the exact backup password.
-  const raw = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.UTF8 });
+  const payloadB64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+  let text: string;
+  try {
+    text = utf8BytesToString(base64ToBytes(payloadB64));
+  } catch {
+    throw new Error('INVALID_BACKUP');
+  }
   let backup: BackupFile;
-  if (raw.trim().startsWith('{')) {
+  if (text.trim().startsWith('{')) {
+    // Very old plain-JSON backup — restore without a password.
     try {
-      backup = JSON.parse(raw) as BackupFile;
+      backup = JSON.parse(text) as BackupFile;
     } catch {
       throw new Error('INVALID_BACKUP');
     }
   } else {
-    const payload = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
     let backupParsed: BackupFile | null = null;
     try {
       // Legacy builds obfuscated with the static secret only (no password).
-      backupParsed = JSON.parse(deobfuscateText(payload)) as BackupFile;
+      backupParsed = JSON.parse(deobfuscateText(payloadB64)) as BackupFile;
     } catch {
       try {
-        backupParsed = JSON.parse(deobfuscateWithPassword(payload, password)) as BackupFile;
+        backupParsed = JSON.parse(deobfuscateWithPassword(payloadB64, password)) as BackupFile;
       } catch {
         throw new Error('WRONG_PASSWORD');
       }

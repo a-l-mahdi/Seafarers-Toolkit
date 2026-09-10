@@ -2,8 +2,9 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge, Card, FieldRow } from '@/components/ui/primitives';
-import { useContracts, useDocuments, useProfile, useRanks, useRequiredSeaTime, useSeaTimeSummary } from '@/hooks/queries';
+import { useContracts, useDocuments, useProfile, useRanks, useSeaTimeSummary } from '@/hooks/queries';
 import { contractCountdown } from '@/domain/contract';
+import { promotionDaysFromMonths } from '@/domain/career';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { useTheme } from '@/hooks/use-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,9 +20,10 @@ export default function ReportsScreen() {
   const { data: documents } = useDocuments();
   const { data: profile } = useProfile();
   const { data: ranks } = useRanks();
-  const { data: required } = useRequiredSeaTime(profile?.currentRankId ?? null, profile?.nextRankId ?? null);
 
   const rankName = (id: string | null) => ranks?.find((r) => r.id === id)?.name ?? '—';
+  const currentRank = ranks?.find((r) => r.id === profile?.currentRankId) ?? null;
+  const required = promotionDaysFromMonths(currentRank?.promotionMonths ?? null);
 
   return (
     <ScrollView nestedScrollEnabled contentContainerStyle={[styles.container, { paddingBottom: Spacing.xxl + insets.bottom }]} style={{ backgroundColor: colors.background }}>
@@ -46,7 +48,7 @@ export default function ReportsScreen() {
         <Text style={[styles.title, { color: colors.text }]}>{t('reports.careerSummary')}</Text>
         <FieldRow label={t('career.currentRank')} value={rankName(profile?.currentRankId ?? null)} />
         <FieldRow label={t('career.nextRank')} value={rankName(profile?.nextRankId ?? null)} />
-        <FieldRow label={t('career.requiredSeaTime')} value={`${required ?? 0} ${t('common.days')}`} />
+        <FieldRow label={t('career.requiredSeaTime')} value={`${required} ${t('common.days')}`} />
       </Card>
 
       <Card>

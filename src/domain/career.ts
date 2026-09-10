@@ -15,6 +15,23 @@ export function isTopRank(rankId: string | null, ranks: RankLike[]): boolean {
   return !ranks.some((r) => r.department === current.department && r.level < current.level);
 }
 
+/** The next rank in the same department, one level above the current one. */
+export function nextRankId(rankId: string | null, ranks: RankLike[]): string | null {
+  if (!rankId) return null;
+  const current = ranks.find((r) => r.id === rankId);
+  if (!current) return null;
+  const above = ranks
+    .filter((r) => r.department === current.department && r.level > current.level)
+    .sort((a, b) => a.level - b.level);
+  return above[0]?.id ?? null;
+}
+
+/** Promotion sea time in days from the rank's configured months (1 month ≈ 30.44 days). */
+export function promotionDaysFromMonths(months: number | null, fallback = 365): number {
+  if (!months || months <= 0) return fallback;
+  return Math.round(months * 30.44);
+}
+
 export function careerProgress(completedDays: number, requiredDays: number): CareerProgress {
   const required = Math.max(requiredDays, 0);
   const completed = Math.max(completedDays, 0);

@@ -186,6 +186,14 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
     // a contract keeps its duration instead of resetting it to form defaults.
     await db.execAsync('ALTER TABLE contracts ADD COLUMN duration_json TEXT');
   }
+  const rankCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(ranks)');
+  const rankNames = new Set(rankCols.map((c) => c.name));
+  if (!rankNames.has('promotion_months')) {
+    // Sea time (in months) required to promote FROM each rank to the next one;
+    // user-configurable per rank, computed in days (months × 30.44) in the domain.
+    await db.execAsync('ALTER TABLE ranks ADD COLUMN promotion_months INTEGER');
+    await db.execAsync('UPDATE ranks SET promotion_months = 12 WHERE promotion_months IS NULL');
+  }
 }
 
 async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
@@ -212,7 +220,7 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
     ];
     for (const [name, department, level] of defaultRanks) {
       await db.runAsync(
-        'INSERT OR IGNORE INTO ranks (id, department, name, level, is_default) VALUES (?, ?, ?, ?, 1)',
+        'INSERT OR IGNORE INTO ranks (id, department, name, level, promotion_months, is_default) VALUES (?, ?, ?, ?, 12, 1)',
         `rank_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
         department,
         name,
@@ -232,7 +240,7 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
   ];
   for (const [name, department, level] of rankV2) {
     await db.runAsync(
-      'INSERT OR IGNORE INTO ranks (id, department, name, level, is_default) VALUES (?, ?, ?, ?, 1)',
+      'INSERT OR IGNORE INTO ranks (id, department, name, level, promotion_months, is_default) VALUES (?, ?, ?, ?, 12, 1)',
       `rank_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
       department,
       name,
@@ -240,6 +248,7 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
     );
   }
   await db.runAsync("UPDATE ranks SET level = 3 WHERE id = 'rank_etr' AND level = 2");
+  await db.runAsync('UPDATE ranks SET promotion_months = 12 WHERE promotion_months IS NULL');
 
   const docTypeCount = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM document_types');
   if (!docTypeCount || docTypeCount.c === 0) {

@@ -27,6 +27,8 @@ export interface Rank {
   department: Department;
   name: string;
   level: number;
+  /** Sea time (in months) required for promotion from this rank to the next one. */
+  promotionMonths: number | null;
   isDefault: boolean;
 }
 

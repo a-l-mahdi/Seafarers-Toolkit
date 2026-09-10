@@ -7,7 +7,6 @@ import type {
   LeaveSettings,
   Profile,
   Rank,
-  RankRequirement,
   SeaTimeRecord,
   Vessel,
 } from '@/types/domain';
@@ -23,7 +22,6 @@ import type { ContractListRow, DocumentListRow } from '@/database/repositories';
 export const queryKeys = {
   profile: ['profile'] as const,
   ranks: ['ranks'] as const,
-  rankRequirements: ['rank-requirements'] as const,
   vessels: ['vessels'] as const,
   contracts: ['contracts'] as const,
   documents: ['documents'] as const,
@@ -55,8 +53,24 @@ export function useRanks() {
 export function useCreateRank() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { department: Rank['department']; name: string; level: number }) =>
-      RanksRepo.createRank(input.department, input.name, input.level),
+    mutationFn: (input: { department: Rank['department']; name: string; level: number; promotionMonths?: number | null }) =>
+      RanksRepo.createRank(input.department, input.name, input.level, input.promotionMonths ?? 12),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ranks }),
+  });
+}
+
+export function useUpdateRank() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rank: Rank) => RanksRepo.updateRank(rank),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ranks }),
+  });
+}
+
+export function useMoveRank() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dir }: { id: string; dir: -1 | 1 }) => RanksRepo.moveRank(id, dir),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ranks }),
   });
 }
@@ -65,27 +79,19 @@ export function useDeleteRank() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => RanksRepo.deleteRank(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ranks }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.ranks });
+      qc.invalidateQueries({ queryKey: queryKeys.profile });
+    },
   });
 }
 
-export function useRankRequirements() {
-  return useQuery({ queryKey: queryKeys.rankRequirements, queryFn: RanksRepo.listRankRequirements });
-}
-
-export function useRequiredSeaTime(fromRankId: string | null, toRankId: string | null) {
+/** Promotion sea time (days) for the sailor's current rank. */
+export function usePromotionDays(rankId: string | null) {
   return useQuery({
-    queryKey: [...queryKeys.rankRequirements, 'required', fromRankId, toRankId],
-    queryFn: () => RanksRepo.getRequiredSeaTimeFor(fromRankId, toRankId),
-    enabled: !!toRankId,
-  });
-}
-
-export function useSaveRankRequirement() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (requirement: RankRequirement) => RanksRepo.upsertRankRequirement(requirement),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.rankRequirements }),
+    queryKey: [...queryKeys.ranks, 'promotion-days', rankId],
+    queryFn: () => RanksRepo.getPromotionDaysFor(rankId, 365),
+    enabled: rankId !== undefined,
   });
 }
 

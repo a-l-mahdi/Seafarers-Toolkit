@@ -74,7 +74,7 @@ export default function RanksScreen() {
             {depRanks.map((rank) => (
               <View key={rank.id} style={styles.row}>
                 <Text style={{ color: colors.text, flex: 1 }}>
-                  {rank.name} {rank.isDefault ? '' : '· custom'}
+                  {rank.name}
                 </Text>
                 {!rank.isDefault ? (
                   <Text style={{ color: colors.danger }} onPress={() => confirmDelete(rank.id)}>

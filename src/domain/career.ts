@@ -1,6 +1,20 @@
 import type { CareerProgress } from '@/types/domain';
 import { addDaysISO, todayISO } from '@/utils/date';
 
+export interface RankLike {
+  id: string;
+  department: string;
+  level: number;
+}
+
+/** True when the sailor holds the highest rank within their department (no further promotion). */
+export function isTopRank(rankId: string | null, ranks: RankLike[]): boolean {
+  if (!rankId) return false;
+  const current = ranks.find((r) => r.id === rankId);
+  if (!current) return false;
+  return !ranks.some((r) => r.department === current.department && r.level < current.level);
+}
+
 export function careerProgress(completedDays: number, requiredDays: number): CareerProgress {
   const required = Math.max(requiredDays, 0);
   const completed = Math.max(completedDays, 0);

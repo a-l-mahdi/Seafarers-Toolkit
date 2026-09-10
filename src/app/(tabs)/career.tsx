@@ -12,7 +12,7 @@ import {
   useSeaTimeSummary,
   useContracts,
 } from '@/hooks/queries';
-import { careerProgress, estimatedQualificationDate } from '@/domain/career';
+import { careerProgress, estimatedQualificationDate, isTopRank } from '@/domain/career';
 import { useTheme } from '@/hooks/use-theme';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { Spacing } from '@/constants/theme';
@@ -32,6 +32,8 @@ export default function CareerScreen() {
   const saveRequirement = useSaveRankRequirement();
 
   const rankName = (id: string | null) => ranks?.find((r) => r.id === id)?.name ?? null;
+  const currentRank = ranks?.find((r) => r.id === profile?.currentRankId) ?? null;
+  const atTopRank = isTopRank(profile?.currentRankId ?? null, ranks ?? []);
   const requiredDays = required ?? 0;
   const currentRankSeaTime =
     seaTime?.byRank.find((r) => r.rankId && r.rankId === profile?.currentRankId)?.days ?? 0;
@@ -77,8 +79,20 @@ export default function CareerScreen() {
       />
 
       <Card>
-        <FieldRow label={t('career.currentRank')} value={rankName(profile?.currentRankId ?? null) ?? t('common.notSet')} />
-        <FieldRow label={t('career.nextRank')} value={rankName(profile?.nextRankId ?? null) ?? t('common.notSet')} />
+        <FieldRow
+          label={t('career.currentRank')}
+          value={rankName(profile?.currentRankId ?? null) ?? t('common.notSet')}
+        />
+        {atTopRank ? (
+          <Text style={{ color: colors.success, fontWeight: '600', marginTop: 4 }}>
+            {t('career.topRank')}
+          </Text>
+        ) : (
+          <FieldRow
+            label={t('career.nextRank')}
+            value={rankName(profile?.nextRankId ?? null) ?? t('common.notSet')}
+          />
+        )}
       </Card>
 
       <Card>
@@ -104,13 +118,17 @@ export default function CareerScreen() {
             </Text>
             {progress.complete ? (
               <Text style={{ color: colors.success, fontWeight: '600' }}>{t('career.complete')}</Text>
+            ) : atTopRank ? (
+              <Text style={{ color: colors.success, fontWeight: '600' }}>{t('career.topRank')}</Text>
             ) : (
               <FieldRow
                 label={t('career.estimatedDate')}
                 value={estimated ? formatDate(estimated) : t('career.notPredictable')}
               />
             )}
-            <Button label={t('career.editRequirement')} onPress={startEdit} variant="secondary" />
+            {!atTopRank ? (
+              <Button label={t('career.editRequirement')} onPress={startEdit} variant="secondary" />
+            ) : null}
           </>
         )}
       </Card>

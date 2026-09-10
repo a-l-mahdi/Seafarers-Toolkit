@@ -2,7 +2,7 @@ import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native
 import { Link, Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Card, EmptyState, FieldRow } from '@/components/ui/primitives';
-import { useDeleteSeaTimeRecord, useProfile, useRanks, useSeaTimeRecords, useSeaTimeSummary } from '@/hooks/queries';
+import { useDeleteSeaTimeRecord, useRanks, useSeaTimeRecords, useSeaTimeSummary } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFormattedDate } from '@/hooks/use-date-format';
@@ -17,7 +17,6 @@ export default function SeaTimeScreen() {
   const { data: summary } = useSeaTimeSummary();
   const { data: records } = useSeaTimeRecords();
   const { data: ranks } = useRanks();
-  const { data: profile } = useProfile();
   const remove = useDeleteSeaTimeRecord();
 
   const rankName = (id: string | null) => (id ? ranks?.find((r) => r.id === id)?.name ?? id : '—');
@@ -37,11 +36,6 @@ export default function SeaTimeScreen() {
           title: t('seaTime.title'),
           headerTintColor: colors.text,
           headerStyle: { backgroundColor: colors.background },
-          headerRight: () => (
-            <Link href="/sea-time-form" style={{ color: colors.primary, fontWeight: '600' }}>
-              + {t('common.add')}
-            </Link>
-          ),
         }}
       />
       <FlatList nestedScrollEnabled
@@ -70,6 +64,9 @@ export default function SeaTimeScreen() {
             </Card>
             <Text style={[styles.sectionTitle, { color: colors.text, marginTop: Spacing.sm }]}>
               {t('seaTime.manual')}
+            </Text>
+            <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: Spacing.sm }}>
+              {t('career.addSeaTimeHint')}
             </Text>
           </>
         }
@@ -105,7 +102,11 @@ export default function SeaTimeScreen() {
         )}
         ListEmptyComponent={<EmptyState title={t('seaTime.noRecords')} />}
       />
-      {!profile ? null : null}
+      <Link href="/contracts" asChild>
+        <Text style={{ color: colors.primary, textAlign: 'center', fontWeight: '600', paddingBottom: Spacing.md }}>
+          {t('career.goToContracts')}
+        </Text>
+      </Link>
     </View>
   );
 }

@@ -72,14 +72,12 @@ export async function deleteSeaTimeRecord(id: string): Promise<void> {
 }
 
 /**
- * Total sea time = contract-derived sea time (computed live from the contracts
- * list) + manual records that do not overlap a same-rank contract.
+ * Total sea time = contract-derived sea time only (computed live from the
+ * contracts list). Manual records are not counted.
  */
 export async function getSeaTimeSummary(
   contracts: Contract[],
   rankNames: Map<string, string>
 ): Promise<SeaTimeSummary> {
-  const records = await listSeaTimeRecords();
-  const manualRecords = records.filter((r) => r.contractId === null);
-  return buildSeaTimeSummary(contracts, manualRecords, rankNames, new Date());
+  return buildSeaTimeSummary(contracts, rankNames, new Date());
 }

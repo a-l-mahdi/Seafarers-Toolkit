@@ -75,7 +75,6 @@ export default function RootLayout() {
                 <Stack.Screen name="trip-files" options={{ presentation: 'modal' }} />
                 <Stack.Screen name="contract-form" options={{ presentation: 'modal' }} />
                 <Stack.Screen name="vessel-form" options={{ presentation: 'modal' }} />
-                <Stack.Screen name="sea-time-form" options={{ presentation: 'modal' }} />
                 <Stack.Screen name="profile-form" options={{ presentation: 'modal' }} />
               </Stack>
             </View>

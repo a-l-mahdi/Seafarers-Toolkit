@@ -64,28 +64,15 @@ export interface SeaTimeSummary {
 }
 
 /**
- * Accurate sea-time totals, derived from the contracts list (computed live so
- * sign-off dates and edits are always reflected) plus manual records that do
- * NOT overlap a contract of the same rank (those would double count).
+ * Accurate sea-time totals derived ONLY from the contracts list (computed live
+ * so sign-off dates and edits are always reflected). Manual/imported records
+ * are not counted — sea time grows by adding and completing contracts.
  */
 export function buildSeaTimeSummary(
   contracts: Contract[],
-  manualRecords: SeaTimeRecord[],
   rankNames: Map<string, string>,
   now: Date = new Date()
 ): SeaTimeSummary {
-  const overlappingIds = new Set(
-    findOverlaps(manualRecords, contracts)
-      .map((warning) => {
-        const record = manualRecords.find((r) => r.id === warning.manualRecordId);
-        const contract = contracts.find((c) => c.id === warning.contractId);
-        if (!record || !contract) return null;
-        // Only the same rank bucket double counts; different ranks are separate.
-        return (record.rankId ?? null) === (contract.rankId || null) ? record.id : null;
-      })
-      .filter((id): id is string => id !== null)
-  );
-
   const buckets = new Map<string | null, SeaTimeAmount>();
   const push = (rankId: string | null, amount: SeaTimeAmount) => {
     const key = rankId ?? '_none';
@@ -94,10 +81,6 @@ export function buildSeaTimeSummary(
 
   for (const contract of contracts) {
     push(contract.rankId || null, seaTimeForContract(contract, now));
-  }
-  for (const record of manualRecords) {
-    if (overlappingIds.has(record.id)) continue;
-    push(record.rankId, { days: record.days, hours: record.hours });
   }
 
   const byRank: SeaTimeByRank[] = [...buckets.entries()]

@@ -103,7 +103,7 @@ export async function listContracts(): Promise<ContractListRow[]> {
      FROM contracts c
      LEFT JOIN vessels v ON v.id = c.vessel_id
      LEFT JOIN ranks r ON r.id = c.rank_id
-     ORDER BY c.join_date DESC`
+     ORDER BY c.join_date DESC, c.created_at DESC`
   );
   return rows.map((row) => ({
     ...mapContract(row),

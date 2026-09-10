@@ -202,8 +202,10 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
       ['3rd Engineer', 'engine', 3],
       ['4th Engineer', 'engine', 4],
       ['Engine Cadet', 'engine', 5],
-      ['ETO', 'electro', 1],
-      ['ETR', 'electro', 2],
+      ['ETO 1', 'electro', 1],
+      ['ETO 2', 'electro', 2],
+      ['ETR', 'electro', 3],
+      ['ETO Cadet', 'electro', 4],
       ['Bosun', 'other', 3],
       ['AB (Able Seafarer)', 'other', 4],
       ['OS (Ordinary Seafarer)', 'other', 5],
@@ -218,6 +220,26 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
       );
     }
   }
+
+  // Rank seed v2 (also applied to existing installs): the old single ETO rank
+  // is replaced by the electro-technical ladder; ETO 1 outranks ETO 2.
+  await db.runAsync("DELETE FROM ranks WHERE id = 'rank_eto'");
+  const rankV2: [string, string, number][] = [
+    ['ETO 1', 'electro', 1],
+    ['ETO 2', 'electro', 2],
+    ['ETR', 'electro', 3],
+    ['ETO Cadet', 'electro', 4],
+  ];
+  for (const [name, department, level] of rankV2) {
+    await db.runAsync(
+      'INSERT OR IGNORE INTO ranks (id, department, name, level, is_default) VALUES (?, ?, ?, ?, 1)',
+      `rank_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+      department,
+      name,
+      level
+    );
+  }
+  await db.runAsync("UPDATE ranks SET level = 3 WHERE id = 'rank_etr' AND level = 2");
 
   const docTypeCount = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM document_types');
   if (!docTypeCount || docTypeCount.c === 0) {

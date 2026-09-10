@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button, Card, EmptyState, FieldRow, ProgressBar } from '@/components/ui/primitives';
 import { useContracts, useDocuments, useLeaveSettings, useProfile, useRanks, useRequiredSeaTime, useSeaTimeSummary } from '@/hooks/queries';
-import { careerProgress, estimatedQualificationDate } from '@/domain/career';
+import { careerProgress, estimatedQualificationDate, isTopRank } from '@/domain/career';
 import { contractCountdown, contractProgressColor } from '@/domain/contract';
 import { computeLeaveLedger, daysUntilReturn } from '@/domain/leave';
 import { todayISO } from '@/utils/date';
@@ -77,7 +77,14 @@ export default function DashboardScreen() {
 
       <Card>
         <FieldRow label={t('dashboard.currentRank')} value={rankName(profile?.currentRankId ?? null) ?? t('common.notSet')} />
-        <FieldRow label={t('dashboard.nextRank')} value={rankName(profile?.nextRankId ?? null) ?? t('common.notSet')} />
+        <FieldRow
+          label={t('dashboard.nextRank')}
+          value={
+            isTopRank(profile?.currentRankId ?? null, ranks ?? [])
+              ? t('career.topRank')
+              : rankName(profile?.nextRankId ?? null) ?? t('common.notSet')
+          }
+        />
         <FieldRow
           label={t('dashboard.status')}
           value={onLeave ? t('dashboard.onLeave') : activeContract ? t('dashboard.onboard') : t('dashboard.available')}

@@ -46,7 +46,7 @@ export default function CareerScreen() {
     activeContract?.expectedSignOff ?? null
   );
   return (
-    <ScrollView nestedScrollEnabled
+    <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       contentContainerStyle={styles.container}
       style={{ backgroundColor: colors.background }}
     >
@@ -60,47 +60,42 @@ export default function CareerScreen() {
       />
 
       <Card>
-        <FieldRow
-          label={t('career.currentRank')}
-          value={rankName(profile?.currentRankId ?? null) ?? t('common.notSet')}
-        />
         {atTopRank ? (
-          <Text style={{ color: colors.success, fontWeight: '600', marginTop: 4 }}>
-            {t('career.topRank')}
-          </Text>
+          <Text style={{ color: colors.success, fontWeight: '600' }}>{t('career.topRank')}</Text>
         ) : (
-          <FieldRow
-            label={t('career.nextRank')}
-            value={rankName(nextId) ?? t('common.notSet')}
-          />
+          <>
+            <FieldRow
+              label={t('career.currentRank')}
+              value={rankName(profile?.currentRankId ?? null) ?? t('common.notSet')}
+            />
+            <FieldRow label={t('career.nextRank')} value={rankName(nextId) ?? t('common.notSet')} />
+          </>
         )}
       </Card>
 
-      <Card>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('career.progress')}</Text>
-        <FieldRow label={t('career.requiredSeaTime')} value={`${requiredDays} ${t('common.days')}`} />
-        <FieldRow label={t('career.completed')} value={`${currentRankSeaTime} ${t('common.days')}`} />
-        <FieldRow label={t('career.remaining')} value={`${progress.remaining} ${t('common.days')}`} />
-        <ProgressBar progress={progress.progress} tone={progress.complete ? 'success' : 'primary'} />
-        <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>
-          {Math.round(progress.progress * 100)}%
-        </Text>
-        {progress.complete ? (
-          <Text style={{ color: colors.success, fontWeight: '600' }}>{t('career.complete')}</Text>
-        ) : atTopRank ? (
-          <Text style={{ color: colors.success, fontWeight: '600' }}>{t('career.topRank')}</Text>
-        ) : (
-          <FieldRow
-            label={t('career.estimatedDate')}
-            value={estimated ? formatDate(estimated) : t('career.notPredictable')}
-          />
-        )}
-        {!atTopRank ? (
+      {!atTopRank ? (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('career.progress')}</Text>
+          <FieldRow label={t('career.requiredSeaTime')} value={`${requiredDays} ${t('common.days')}`} />
+          <FieldRow label={t('career.completed')} value={`${currentRankSeaTime} ${t('common.days')}`} />
+          <FieldRow label={t('career.remaining')} value={`${progress.remaining} ${t('common.days')}`} />
+          <ProgressBar progress={progress.progress} tone={progress.complete ? 'success' : 'primary'} />
+          <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>
+            {Math.round(progress.progress * 100)}%
+          </Text>
+          {progress.complete ? (
+            <Text style={{ color: colors.success, fontWeight: '600' }}>{t('career.complete')}</Text>
+          ) : (
+            <FieldRow
+              label={t('career.estimatedDate')}
+              value={estimated ? formatDate(estimated) : t('career.notPredictable')}
+            />
+          )}
           <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: Spacing.sm }}>
             {t('career.requirementInRanks')}
           </Text>
-        ) : null}
-      </Card>
+        </Card>
+      ) : null}
 
       <Card>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('career.history')}</Text>

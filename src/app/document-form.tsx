@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button, Card, FieldRow } from '@/components/ui/primitives';
@@ -228,7 +228,11 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
         onBack={() => router.back()}
         action={initial ? { label: t('common.delete'), onPress: confirmDelete } : undefined}
       />
-      <ScrollView nestedScrollEnabled contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+          contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}
+        >
         {initial ? (
           <View style={styles.statusRow}>
             <Badge label={t(`documents.status.${initial.status}`)} tone={STATUS_TONE[initial.status]} />
@@ -340,7 +344,8 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
             <Button label={t('common.delete')} onPress={confirmDelete} variant="danger" style={styles.flexBtn} />
           ) : null}
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

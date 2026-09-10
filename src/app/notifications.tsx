@@ -36,7 +36,7 @@ export default function NotificationsScreen() {
           ),
         }}
       />
-      <ScrollView nestedScrollEnabled contentContainerStyle={[styles.list, { paddingBottom: Spacing.xxl + insets.bottom }]}>
+      <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.list, { paddingBottom: Spacing.xxl + insets.bottom }]}>
         {(notifications ?? []).length === 0 ? (
           <EmptyState title={t('notifications.empty')} />
         ) : null}

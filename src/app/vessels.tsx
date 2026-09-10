@@ -38,7 +38,7 @@ export default function VesselsScreen() {
           <Button label={`+ ${t('vessels.add')}`} onPress={() => undefined} />
         </Link>
       </View>
-      <FlatList nestedScrollEnabled
+      <FlatList nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
         contentContainerStyle={[styles.list, { paddingBottom: Spacing.xxl + insets.bottom }]}
         data={filtered}
         keyExtractor={(item) => item.id}

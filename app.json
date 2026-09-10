@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "com.seafarer.toolkit",
+      "softwareKeyboardLayoutMode": "resize",
       "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#0254B6",

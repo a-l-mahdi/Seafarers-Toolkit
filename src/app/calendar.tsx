@@ -231,7 +231,7 @@ export default function CalendarScreen() {
   }, [selected, calendarPref, locale]);
 
   return (
-    <ScrollView nestedScrollEnabled contentContainerStyle={[styles.container, { paddingBottom: Spacing.xxl + insets.bottom }]} style={{ backgroundColor: colors.background }}>
+    <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.container, { paddingBottom: Spacing.xxl + insets.bottom }]} style={{ backgroundColor: colors.background }}>
       <Stack.Screen
         options={{
           headerShown: true,
@@ -319,10 +319,7 @@ export default function CalendarScreen() {
           <Text style={[styles.detailTitle, { color: colors.text }]}>{selectedTitle}</Text>
           {selectedDetails.map((item, i) => (
             <View key={i} style={[styles.eventRow, { backgroundColor: eventColor[item.event] }]}>
-              <Text style={styles.eventText}>
-                {t(`calendar.legend.${item.event}`)}
-                {item.label ? ` · ${item.label}` : ''}
-              </Text>
+              <Text style={styles.eventText}>{t(`calendar.event.${item.event}`, { name: item.label })}</Text>
             </View>
           ))}
         </Card>

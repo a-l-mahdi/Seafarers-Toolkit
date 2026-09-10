@@ -61,12 +61,13 @@ export default function DashboardScreen() {
   const alerts: { tone: 'danger' | 'warning' | 'success'; text: string }[] = [];
   if (docStats.expired > 0) alerts.push({ tone: 'danger', text: `${docStats.expired} ${t('documents.status.expired')}` });
   if (nearExpiry > 0) alerts.push({ tone: 'warning', text: `${nearExpiry} ${t('documents.status.expiring_soon')}` });
-  if (progress.complete) alerts.push({ tone: 'success', text: t('career.complete') });
+  // No "requirement complete" alert at the top rank — there is no promotion left.
+  if (progress.complete && !atTopRank) alerts.push({ tone: 'success', text: t('career.complete') });
 
   const countdown = activeContract ? contractCountdown(activeContract) : null;
 
   return (
-    <ScrollView nestedScrollEnabled contentContainerStyle={[styles.container, { paddingTop: Spacing.lg + insets.top }]} style={{ backgroundColor: colors.background }}>
+    <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.container, { paddingTop: Spacing.lg + insets.top }]} style={{ backgroundColor: colors.background }}>
       <Text style={[styles.greeting, { color: colors.text }]}>
         {profile ? t('dashboard.greeting', { name: profile.firstName || profile.lastName }) : t('dashboard.greetingGuest')}
       </Text>
@@ -96,14 +97,14 @@ export default function DashboardScreen() {
       <Card>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('seaTime.title')}</Text>
         <FieldRow label={t('seaTime.total')} value={`${seaTime?.total.days ?? 0} ${t('common.days')}`} />
-        <FieldRow
-          label={t('career.completed')}
-          value={`${completedByRank?.days ?? 0} / ${required} ${t('common.days')}`}
-        />
         {atTopRank ? (
           <Text style={{ color: colors.success, fontWeight: '600' }}>{t('career.topRank')}</Text>
         ) : (
           <>
+            <FieldRow
+              label={t('career.completed')}
+              value={`${completedByRank?.days ?? 0} / ${required} ${t('common.days')}`}
+            />
             <FieldRow label={t('career.remaining')} value={`${progress.remaining} ${t('common.days')}`} />
             <ProgressBar progress={progress.progress} tone={progress.complete ? 'success' : 'primary'} />
             <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>

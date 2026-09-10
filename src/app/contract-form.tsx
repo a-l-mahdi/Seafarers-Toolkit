@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/primitives';
@@ -207,7 +207,14 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
         onBack={() => router.back()}
         action={initial ? { label: t('common.delete'), onPress: confirmDelete } : undefined}
       />
-      <ScrollView nestedScrollEnabled contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+          contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}
+        >
         <Select
           label={t('contracts.vessel')}
           value={vesselId}
@@ -294,7 +301,8 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
             <Button label={t('common.delete')} onPress={confirmDelete} variant="danger" style={styles.flexBtn} />
           ) : null}
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

@@ -38,7 +38,7 @@ export default function SeaTimeScreen() {
           headerStyle: { backgroundColor: colors.background },
         }}
       />
-      <FlatList nestedScrollEnabled
+      <FlatList nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
         contentContainerStyle={[styles.list, { paddingBottom: Spacing.xxl + insets.bottom }]}
         ListHeaderComponent={
           <>

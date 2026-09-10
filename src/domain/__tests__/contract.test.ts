@@ -1,4 +1,4 @@
-import { contractCountdown, contractProgressColor, expectedSignOff, lerpColor, validateContract } from '../contract';
+import { contractCountdown, contractProgressColor, contractRangesOverlap, expectedSignOff, lerpColor, validateContract } from '../contract';
 import { seaTimeForContract, sum } from '../sea-time';
 import type { Contract } from '@/types/domain';
 
@@ -69,6 +69,29 @@ describe('validateContract', () => {
     expect(validateContract({ joinDate: '2026-09-01', expectedSignOff: '2026-08-01' }).valid).toBe(false);
     expect(validateContract({ joinDate: '2026-09-01', expectedSignOff: '2026-09-01' }).valid).toBe(false);
     expect(validateContract({ joinDate: '2026-09-01', expectedSignOff: '2027-03-01' }).valid).toBe(true);
+  });
+});
+
+describe('contractRangesOverlap (sailor cannot be on two vessels at once)', () => {
+  // Real-world case: MT ARGO trip actually ended 2021-08-10 (sailor left the
+  // vessel), even though the expected sign-off would have been 2021-09-18.
+  // MT APAMA started 2021-09-12 — no real overlap, so adding it must be allowed.
+  const apama = { joinDate: '2021-09-12', expectedSignOff: '2022-01-12', actualSignOff: '2021-09-28' };
+
+  it('uses the ACTUAL sign-off as the effective end of a trip', () => {
+    const argo = { joinDate: '2021-05-18', expectedSignOff: '2021-09-18', actualSignOff: '2021-08-10' };
+    expect(contractRangesOverlap(apama, argo)).toBe(false);
+  });
+
+  it('still flags overlap when the actual end reaches into the next trip', () => {
+    const argo = { joinDate: '2021-05-18', expectedSignOff: '2021-09-18', actualSignOff: '2021-09-15' };
+    expect(contractRangesOverlap(apama, argo)).toBe(true);
+  });
+
+  it('flags overlap with contracts that have no actual sign-off yet', () => {
+    const active = { joinDate: '2025-04-14', expectedSignOff: '2025-09-22', actualSignOff: null };
+    const planned = { joinDate: '2025-08-01', expectedSignOff: '2025-12-01', actualSignOff: null };
+    expect(contractRangesOverlap(active, planned)).toBe(true);
   });
 });
 

@@ -115,11 +115,20 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
     if (isISODate(actualSignOff) && isISODate(joinDate) && actualSignOff <= joinDate) {
       errs.push(t('contracts.errors.signOffBeforeJoin'));
     }
-    // A sailor cannot be on two vessels at once.
+    // A sailor cannot be on two vessels at once. The overlap check uses the
+    // EFFECTIVE end date: the actual sign-off (real trip end) when entered,
+    // otherwise the expected sign-off. A sailor may rejoin while leave from
+    // the previous contract is still running — only onboard time overlaps.
     if (
       preview &&
       (contracts ?? []).some(
-        (c) => c.id !== initial?.id && contractRangesOverlap(c, { joinDate, expectedSignOff: preview, actualSignOff: null })
+        (c) =>
+          c.id !== initial?.id &&
+          contractRangesOverlap(c, {
+            joinDate,
+            expectedSignOff: preview,
+            actualSignOff: isISODate(actualSignOff) ? actualSignOff : null,
+          })
       )
     ) {
       errs.push(t('contracts.errors.overlap'));
@@ -135,7 +144,10 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
         joinDate,
         expectedSignOff: preview,
         actualSignOff: isISODate(actualSignOff) ? actualSignOff : null,
-        durationDays: Math.round((Date.parse(preview) - Date.parse(joinDate)) / 86_400_000),
+        // Trip length counts to the real (actual) sign-off when provided.
+        durationDays: Math.round(
+          (Date.parse(isISODate(actualSignOff) ? actualSignOff : preview) - Date.parse(joinDate)) / 86_400_000
+        ),
         durationJson: JSON.stringify({
           mode,
           days: duration.days ?? null,

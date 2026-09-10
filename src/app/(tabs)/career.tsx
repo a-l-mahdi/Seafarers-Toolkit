@@ -32,7 +32,6 @@ export default function CareerScreen() {
   const saveRequirement = useSaveRankRequirement();
 
   const rankName = (id: string | null) => ranks?.find((r) => r.id === id)?.name ?? null;
-  const currentRank = ranks?.find((r) => r.id === profile?.currentRankId) ?? null;
   const atTopRank = isTopRank(profile?.currentRankId ?? null, ranks ?? []);
   const requiredDays = required ?? 0;
   const currentRankSeaTime =

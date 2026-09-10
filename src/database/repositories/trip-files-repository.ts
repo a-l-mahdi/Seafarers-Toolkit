@@ -2,7 +2,7 @@ import { openDatabase } from '../db';
 import { isoNow } from '@/utils/date';
 import { newId } from '@/utils/id';
 
-export type TripFileKind = 'contract' | 'final_wages' | 'other';
+export type TripFileKind = 'contract' | 'final_wages' | 'sea_service_report' | 'other';
 
 export interface TripFile {
   id: string;

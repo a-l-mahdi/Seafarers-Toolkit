@@ -19,6 +19,7 @@ export function ContractFilesSection({ contractId, compact }: { contractId: stri
   return (
     <View style={compact ? undefined : styles.section}>
       <FileGroup title={t('tripFiles.contract')} contractId={contractId} kind="contract" />
+      <FileGroup title={t('tripFiles.seaServiceReport')} contractId={contractId} kind="sea_service_report" />
       <FileGroup title={t('tripFiles.finalWages')} contractId={contractId} kind="final_wages" />
     </View>
   );

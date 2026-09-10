@@ -1,4 +1,4 @@
-import { base64ToBytes, bytesToBase64, deobfuscateText, obfuscateText, stringToUtf8Bytes, utf8BytesToString } from '../xor-codec';
+import { base64ToBytes, bytesToBase64, deobfuscateText, deobfuscateWithPassword, obfuscateText, obfuscateWithPassword, stringToUtf8Bytes, utf8BytesToString } from '../xor-codec';
 
 describe('xor-codec', () => {
   it('round-trips utf-8 strings (english, persian, emoji, quotes)', () => {
@@ -34,5 +34,13 @@ describe('xor-codec', () => {
   it('deobfuscates payloads of multi-byte boundaries correctly', () => {
     const text = 'aسbسcس🚢d';
     expect(deobfuscateText(obfuscateText(text))).toBe(text);
+  });
+
+  it('password-protected payloads restore only with the exact password', () => {
+    const json = JSON.stringify({ tables: { documents: [{ name: 'پاسپورت' }] } });
+    const payload = obfuscateWithPassword(json, 'S3cret!');
+    expect(deobfuscateWithPassword(payload, 'S3cret!')).toBe(json);
+    expect(payload).not.toContain('پاسپورت');
+    expect(deobfuscateWithPassword(payload, 'wrong')).not.toBe(json);
   });
 });

@@ -64,8 +64,8 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
   const [rankId, setRankId] = useState<string | null>(initial?.rankId || null);
   const [joinDate, setJoinDate] = useState(initial?.joinDate ?? '');
   const [mode, setMode] = useState<DurationMode>(storedDuration?.mode ?? 'months');
-  const [days, setDays] = useState(String(storedDuration?.days ?? 180));
-  const [months, setMonths] = useState(String(storedDuration?.months ?? 6));
+  const [days, setDays] = useState(String(storedDuration?.days ?? 120));
+  const [months, setMonths] = useState(String(storedDuration?.months ?? 4));
   const [customEndDate, setCustomEndDate] = useState(storedDuration?.customEndDate ?? '');
   const [actualSignOff, setActualSignOff] = useState(initial?.actualSignOff ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');

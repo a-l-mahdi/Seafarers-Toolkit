@@ -1,17 +1,17 @@
 import { useState } from 'react';
-import { Alert, I18nManager, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { I18nManager, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card } from '@/components/ui/primitives';
+import { Button, Card, ProgressBar } from '@/components/ui/primitives';
 import { LabeledInput, Select } from '@/components/ui/form';
 import { useLeaveSettings, useSaveLeaveSettings } from '@/hooks/queries';
 import { useSettingsStore } from '@/store/settings-store';
 import { changeLocale, isRTL } from '@/i18n';
 import { useTheme } from '@/hooks/use-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import * as Updates from 'expo-updates';
-import { createBackup, restoreBackup } from '@/services/backup';
+import { createBackup, restoreBackup, type ProgressFn } from '@/services/backup';
 import type { LeaveSettings } from '@/types/domain';
 
 export default function SettingsScreen() {
@@ -92,54 +92,166 @@ function BackupCard() {
   const colors = useTheme();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [dialog, setDialog] = useState<'backup' | 'restore' | null>(null);
 
-  const doBackup = async () => {
+  const runProgress: ProgressFn = (fraction) => setProgress(fraction);
+
+  const doBackup = async (password: string) => {
+    setDialog(null);
     setBusy(true);
     setStatus(null);
+    setProgress(0);
     try {
-      const { count } = await createBackup();
+      const { count } = await createBackup(password, runProgress);
       setStatus(t('settings.backupDone', { count }));
     } catch {
       setStatus(t('settings.backupFailed'));
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
-  const doRestore = () => {
-    Alert.alert(t('settings.restore'), t('settings.restoreConfirm'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.confirm'),
-        style: 'destructive',
-        onPress: async () => {
-          setBusy(true);
-          setStatus(null);
-          try {
-            const { count, files } = await restoreBackup();
-            setStatus(t('settings.restoreDone', { count, files }));
-          } catch {
-            setStatus(t('settings.restoreFailed'));
-          } finally {
-            setBusy(false);
-          }
-        },
-      },
-    ]);
+  const doRestore = (password: string) => {
+    setDialog(null);
+    setBusy(true);
+    setStatus(null);
+    setProgress(0);
+    const run = async () => {
+      try {
+        const { count, files } = await restoreBackup(password, runProgress);
+        setStatus(t('settings.restoreDone', { count, files }));
+      } catch (err) {
+        setStatus(
+          err instanceof Error && err.message === 'WRONG_PASSWORD'
+            ? t('settings.wrongPassword')
+            : t('settings.restoreFailed')
+        );
+      } finally {
+        setBusy(false);
+        setProgress(null);
+      }
+    };
+    void run();
   };
 
   return (
     <Card>
       <Text style={[styles.title, { color: colors.text }]}>{t('settings.backupTitle')}</Text>
       <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: Spacing.md }}>
-        {t('settings.backupHint')}
+        {t('settings.backupPasswordHint')}
       </Text>
       <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
-        <Button label={t('settings.backup')} onPress={() => void doBackup()} disabled={busy} style={{ flex: 1 }} />
-        <Button label={t('settings.restore')} onPress={doRestore} variant="secondary" disabled={busy} style={{ flex: 1 }} />
+        <Button label={t('settings.backup')} onPress={() => setDialog('backup')} disabled={busy} style={{ flex: 1 }} />
+        <Button label={t('settings.restore')} onPress={() => setDialog('restore')} variant="secondary" disabled={busy} style={{ flex: 1 }} />
       </View>
+      {progress !== null ? (
+        <View style={{ marginTop: Spacing.md }}>
+          <ProgressBar progress={progress} tone="primary" />
+          <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4, textAlign: 'center' }}>
+            {Math.round(progress * 100)}%
+          </Text>
+        </View>
+      ) : null}
       {status ? <Text style={{ color: colors.success, fontSize: 13, marginTop: Spacing.sm }}>{status}</Text> : null}
+      {dialog === 'backup' ? (
+        <BackupPasswordDialog
+          title={t('settings.backupPasswordTitle')}
+          hint={t('settings.backupPasswordRepeat')}
+          onCancel={() => setDialog(null)}
+          onConfirm={(password) => void doBackup(password)}
+        />
+      ) : null}
+      {dialog === 'restore' ? (
+        <BackupPasswordDialog
+          title={t('settings.restorePasswordTitle')}
+          hint={t('settings.backupPasswordHintRestore')}
+          single
+          onCancel={() => setDialog(null)}
+          onConfirm={(password) => doRestore(password)}
+        />
+      ) : null}
     </Card>
+  );
+}
+
+/** Password popup: two fields (repeat) for backup, one field for restore. */
+function BackupPasswordDialog({
+  title,
+  hint,
+  single,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  hint: string;
+  single?: boolean;
+  onConfirm: (password: string) => void;
+  onCancel: () => void;
+}) {
+  const { t } = useTranslation();
+  const colors = useTheme();
+  const [password, setPassword] = useState('');
+  const [repeat, setRepeat] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const confirm = () => {
+    if (!password.trim()) {
+      setError(t('settings.passwordRequired'));
+      return;
+    }
+    if (!single && password !== repeat) {
+      setError(t('settings.passwordMismatch'));
+      return;
+    }
+    onConfirm(password);
+  };
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
+      <Pressable style={styles.dialogBackdrop} onPress={onCancel}>
+        <Pressable style={[styles.dialogSheet, { backgroundColor: colors.surface }]} onPress={() => undefined}>
+          <Text style={[styles.dialogTitle, { color: colors.text }]}>{title}</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: Spacing.md }}>{hint}</Text>
+          <LabeledInput
+            label={t('settings.password')}
+            value={password}
+            onChangeText={(v) => {
+              setPassword(v);
+              setError(null);
+            }}
+            secureTextEntry
+          />
+          {single ? null : (
+            <LabeledInput
+              label={t('settings.repeatPassword')}
+              value={repeat}
+              onChangeText={(v) => {
+                setRepeat(v);
+                setError(null);
+              }}
+              secureTextEntry
+            />
+          )}
+          {error ? <Text style={{ color: colors.danger, fontSize: 13, marginBottom: Spacing.sm }}>{error}</Text> : null}
+          <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+            <Pressable
+              onPress={onCancel}
+              style={[styles.dialogBtn, { backgroundColor: colors.surfaceMuted }]}
+            >
+              <Text style={{ color: colors.danger }}>{t('common.cancel')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={confirm}
+              style={[styles.dialogBtn, { backgroundColor: colors.primary }]}
+            >
+              <Text style={{ color: colors.onPrimary, fontWeight: '600' }}>{t('common.confirm')}</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -190,4 +302,8 @@ function LeavePatternCard() {
 const styles = StyleSheet.create({
   container: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xxl },
   title: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
+  dialogBackdrop: { flex: 1, backgroundColor: '#000000A0', justifyContent: 'center', padding: Spacing.xl },
+  dialogSheet: { borderRadius: Radius.lg, padding: Spacing.lg },
+  dialogTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4, textAlign: 'center' },
+  dialogBtn: { flex: 1, paddingVertical: Spacing.sm + 2, borderRadius: Radius.md, alignItems: 'center' },
 });

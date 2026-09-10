@@ -106,6 +106,15 @@ function xorWithSecret(bytes: number[]): number[] {
   return bytes.map((b, i) => b ^ (SECRET.charCodeAt(i % SECRET.length) & 0xff));
 }
 
+/** XOR with the app secret entangled bit-wise with the user's backup password,
+ *  so every byte of the payload depends on the password. */
+function xorWithKey(bytes: number[], key: string): number[] {
+  const keyBytes = key ? stringToUtf8Bytes(key) : [0x5e];
+  return bytes.map(
+    (b, i) => b ^ ((SECRET.charCodeAt(i % SECRET.length) & 0xff) ^ keyBytes[i % keyBytes.length])
+  );
+}
+
 /** Encodes plain text into an obfuscated base64 payload. */
 export function obfuscateText(text: string): string {
   return bytesToBase64(xorWithSecret(stringToUtf8Bytes(text)));
@@ -114,4 +123,13 @@ export function obfuscateText(text: string): string {
 /** Decodes an obfuscated base64 payload back into plain text. */
 export function deobfuscateText(payload: string): string {
   return utf8BytesToString(xorWithSecret(base64ToBytes(payload)));
+}
+
+/** Password-protected variant: without the exact password the payload is unreadable. */
+export function obfuscateWithPassword(text: string, password: string): string {
+  return bytesToBase64(xorWithKey(stringToUtf8Bytes(text), password));
+}
+
+export function deobfuscateWithPassword(payload: string, password: string): string {
+  return utf8BytesToString(xorWithKey(base64ToBytes(payload), password));
 }

@@ -203,6 +203,11 @@ export default function CalendarScreen() {
     setAnchor(calendarPref === 'jalali' ? jalaliToGregorianExact(y, m, 1)! : `${y}-${pad(m)}-01`);
   };
 
+  const goToday = () => {
+    setSelected(null);
+    setAnchor(todayISO());
+  };
+
   const eventColor: Record<DayEvent, string> = {
     onboard: colors.info,
     leave: colors.success,
@@ -248,6 +253,9 @@ export default function CalendarScreen() {
             <Text style={[styles.arrowText, { color: colors.primary }]}>{'›'}</Text>
           </Pressable>
         </View>
+        <Pressable onPress={goToday} hitSlop={6} style={[styles.todayBtn, { borderColor: colors.border }]}>
+          <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>{t('common.today')}</Text>
+        </Pressable>
         <View style={styles.weekRow}>
           {weekdayLabels.map((label, i) => (
             <Text key={`w${i}`} style={[styles.weekLabel, { color: colors.textMuted }]}>
@@ -351,6 +359,14 @@ const styles = StyleSheet.create({
   arrow: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs },
   arrowText: { fontSize: 34, fontWeight: '700', lineHeight: 40 },
   titleBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
+  todayBtn: {
+    alignSelf: 'center',
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 6,
+    marginBottom: Spacing.sm,
+  },
   weekRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 },
   weekLabel: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 12, fontWeight: '600' },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },

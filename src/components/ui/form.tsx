@@ -20,6 +20,7 @@ export function LabeledInput({
   placeholder,
   keyboardType,
   multiline,
+  secureTextEntry,
   error,
 }: {
   label: string;
@@ -28,6 +29,7 @@ export function LabeledInput({
   placeholder?: string;
   keyboardType?: 'default' | 'numeric' | 'email-address' | 'phone-pad';
   multiline?: boolean;
+  secureTextEntry?: boolean;
   error?: string | null;
 }) {
   const colors = useTheme();
@@ -45,6 +47,8 @@ export function LabeledInput({
         placeholderTextColor={colors.textMuted}
         keyboardType={keyboardType}
         multiline={multiline}
+        secureTextEntry={secureTextEntry}
+        autoCapitalize="none"
       />
       {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
     </View>

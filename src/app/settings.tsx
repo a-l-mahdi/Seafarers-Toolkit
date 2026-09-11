@@ -134,10 +134,9 @@ function BackupCard() {
         setStatus({ text: t('settings.restoreDone', { count, files }), tone: 'success' });
       } catch (err) {
         setStatus({
-          text:
-            err instanceof Error && err.message === 'WRONG_PASSWORD'
-              ? t('settings.wrongPassword')
-              : t('settings.restoreFailed'),
+          text: `${t('settings.restoreFailed')} — ${
+            err instanceof Error ? err.message : String(err ?? 'unknown')
+          }`,
           tone: 'error',
         });
       } finally {

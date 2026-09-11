@@ -162,12 +162,3 @@ export function obfuscateWithPassword(text: string, password: string): string {
 export function deobfuscateWithPassword(payload: string, password: string): string {
   return utf8BytesToString(xorWithKey(base64ToBytes(payload), password));
 }
-
-/** Byte-level variants for large files: decode raw (already base64-decoded) bytes. */
-export function deobfuscateBytesWithPassword(bytes: Uint8Array, password: string): string {
-  return utf8BytesToString(xorWithKey(bytes, password));
-}
-
-export function deobfuscateBytesStatic(bytes: Uint8Array): string {
-  return utf8BytesToString(xorWithSecret(bytes));
-}

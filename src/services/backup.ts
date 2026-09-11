@@ -26,6 +26,25 @@ const TABLES = [
 
 const BACKUP_VERSION = 2;
 
+/**
+ * Insert order for restore: parents BEFORE children, otherwise the FK
+ * constraints (documents ← document_files, contracts ← trip_files, …) fail
+ * with "FOREIGN KEY constraint failed" as soon as documents with photos exist.
+ */
+const INSERT_ORDER = [
+  'ranks',
+  'document_types',
+  'vessels',
+  'profile',
+  'settings',
+  'notifications',
+  'contracts',
+  'sea_time_records',
+  'documents',
+  'document_files',
+  'trip_files',
+] as const;
+
 export interface BackupFile {
   version: number;
   exportedAt: string;
@@ -224,7 +243,7 @@ export async function restoreBackup(
     await db.execAsync(
       'DELETE FROM trip_files; DELETE FROM document_files; DELETE FROM documents; DELETE FROM sea_time_records; DELETE FROM contracts; DELETE FROM vessels; DELETE FROM notifications; DELETE FROM profile; DELETE FROM ranks; DELETE FROM document_types; DELETE FROM settings;'
     );
-    for (const table of [...TABLES].reverse()) {
+    for (const table of INSERT_ORDER) {
       const rows = tables[table] ?? [];
       for (const row of rows) {
         const keys = Object.keys(row);

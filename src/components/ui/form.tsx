@@ -1,17 +1,71 @@
-import { useState } from 'react';
+import {
+  createContext,
+  useContext,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import {
   FlatList,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Spacing } from '@/constants/theme';
+
+/**
+ * Lets form inputs ask the surrounding scroll view to scroll them just above
+ * the keyboard when focused (works on Android edge-to-edge and iOS alike).
+ */
+const ScrollToInputContext = createContext<{
+  scrollToInput: (inputRef: RefObject<TextInput | null>) => void;
+} | null>(null);
+
+export function FormScrollView({
+  children,
+  contentContainerStyle,
+  ...rest
+}: Omit<ComponentProps<typeof ScrollView>, 'children' | 'contentContainerStyle'> & {
+  children: ReactNode;
+  contentContainerStyle?: StyleProp<ViewStyle>;
+}) {
+  const scrollRef = useRef<ScrollView>(null);
+
+  const scrollToInput = (inputRef: RefObject<TextInput | null>) => {
+    const scrollView = scrollRef.current;
+    const input = inputRef.current;
+    if (!scrollView || !input) return;
+    input.measureLayout(
+      scrollView as unknown as View,
+      (_x, y, _w, h) => {
+        // Place the input ~110px from the top of the visible area so it sits
+        // right above the keyboard (KeyboardAvoidingView shrinks the bottom).
+        scrollView.scrollTo({ y: Math.max(y - 110, 0), animated: true });
+        void h;
+      },
+      () => undefined
+    );
+  };
+
+  return (
+    <ScrollToInputContext.Provider value={{ scrollToInput }}>
+      <ScrollView ref={scrollRef} {...rest} contentContainerStyle={contentContainerStyle}>
+        {children}
+      </ScrollView>
+    </ScrollToInputContext.Provider>
+  );
+}
 
 export function LabeledInput({
   label,
@@ -33,10 +87,13 @@ export function LabeledInput({
   error?: string | null;
 }) {
   const colors = useTheme();
+  const inputRef = useRef<TextInput>(null);
+  const scrollHelper = useContext(ScrollToInputContext);
   return (
     <View style={styles.field}>
       <Text style={[styles.label, { color: colors.textMuted }]}>{label}</Text>
       <TextInput
+        ref={inputRef}
         style={[
           styles.input,
           { backgroundColor: colors.surface, borderColor: error ? colors.danger : colors.border, color: colors.text },
@@ -49,6 +106,10 @@ export function LabeledInput({
         multiline={multiline}
         secureTextEntry={secureTextEntry}
         autoCapitalize="none"
+        // Multiline inputs no longer swallow vertical drags: the page scrolls
+        // and the field auto-grows instead of scrolling internally.
+        scrollEnabled={multiline ? false : undefined}
+        onFocus={() => scrollHelper?.scrollToInput(inputRef)}
       />
       {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
     </View>

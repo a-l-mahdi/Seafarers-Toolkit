@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, StyleSheet, View } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/primitives';
-import { HeaderBar, LabeledInput, Select } from '@/components/ui/form';
+import { FormScrollView, HeaderBar, LabeledInput, Select } from '@/components/ui/form';
 import { DatePickerField } from '@/components/ui/date-picker';
 import { useProfile, useRanks, useSaveProfile } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
@@ -61,9 +61,9 @@ function ProfileForm({ initial }: { initial: Profile | null }) {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('profile.title')} onBack={() => router.back()} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <FormScrollView
+          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}
         >
         <LabeledInput label={t('profile.firstName')} value={firstName} onChangeText={setFirstName} />
@@ -98,7 +98,7 @@ function ProfileForm({ initial }: { initial: Profile | null }) {
           onSelect={setNextRankId}
         />
         <Button label={t('common.save')} onPress={submit} />
-        </ScrollView>
+        </FormScrollView>
       </KeyboardAvoidingView>
     </View>
   );

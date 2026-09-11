@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button, Card, FieldRow } from '@/components/ui/primitives';
-import { Checkbox, HeaderBar, LabeledInput, Select } from '@/components/ui/form';
+import { FormScrollView, Checkbox, HeaderBar, LabeledInput, Select } from '@/components/ui/form';
 import { DatePickerField } from '@/components/ui/date-picker';
 import { FileGallery, type DisplayFile } from '@/components/file-gallery';
 import {
@@ -228,9 +228,9 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
         onBack={() => router.back()}
         action={initial ? { label: t('common.delete'), onPress: confirmDelete } : undefined}
       />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <FormScrollView
+          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}
         >
         {initial ? (
@@ -344,7 +344,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
             <Button label={t('common.delete')} onPress={confirmDelete} variant="danger" style={styles.flexBtn} />
           ) : null}
         </View>
-        </ScrollView>
+        </FormScrollView>
       </KeyboardAvoidingView>
     </View>
   );

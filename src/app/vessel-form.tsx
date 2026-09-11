@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/primitives';
-import { HeaderBar, LabeledInput } from '@/components/ui/form';
+import { FormScrollView, HeaderBar, LabeledInput } from '@/components/ui/form';
 import { useSaveVessel, useVessels } from '@/hooks/queries';
 import { validateIMO } from '@/database/repositories/vessels-repository';
 import { useTheme } from '@/hooks/use-theme';
@@ -69,9 +69,9 @@ function VesselForm({ initial }: { initial: Vessel | null }) {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('vessels.add')} onBack={() => router.back()} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <FormScrollView
+          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}
         >
         <LabeledInput label={t('vessels.name')} value={name} onChangeText={setName} />
@@ -89,7 +89,7 @@ function VesselForm({ initial }: { initial: Vessel | null }) {
           </Text>
         ))}
         <Button label={t('common.save')} onPress={submit} />
-        </ScrollView>
+        </FormScrollView>
       </KeyboardAvoidingView>
     </View>
   );

@@ -30,7 +30,7 @@ export default function MoreScreen() {
           headerStyle: { backgroundColor: colors.background },
         }}
       />
-      <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.content} style={{ backgroundColor: colors.background }}>
+      <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.content} style={{ backgroundColor: colors.background }}>
         <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {ITEMS.map((item, index) => (
             <Link key={item.href} href={item.href as never} asChild>

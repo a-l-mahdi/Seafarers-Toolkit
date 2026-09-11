@@ -60,7 +60,7 @@ export function FormScrollView({
 
   return (
     <ScrollToInputContext.Provider value={{ scrollToInput }}>
-      <ScrollView ref={scrollRef} {...rest} contentContainerStyle={contentContainerStyle}>
+      <ScrollView showsVerticalScrollIndicator={false} ref={scrollRef} {...rest} contentContainerStyle={contentContainerStyle}>
         {children}
       </ScrollView>
     </ScrollToInputContext.Provider>
@@ -152,7 +152,7 @@ export function Select({
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={[styles.modalBackdrop, { backgroundColor: '#00000080' }]} onPress={() => setOpen(false)}>
           <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
-            <FlatList nestedScrollEnabled
+            <FlatList showsVerticalScrollIndicator={false} nestedScrollEnabled
               data={options}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (

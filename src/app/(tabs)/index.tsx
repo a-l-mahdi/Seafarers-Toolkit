@@ -67,7 +67,7 @@ export default function DashboardScreen() {
   const countdown = activeContract ? contractCountdown(activeContract) : null;
 
   return (
-    <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.container, { paddingTop: Spacing.lg + insets.top }]} style={{ backgroundColor: colors.background }}>
+    <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.container, { paddingTop: Spacing.lg + insets.top }]} style={{ backgroundColor: colors.background }}>
       <Text style={[styles.greeting, { color: colors.text }]}>
         {profile ? t('dashboard.greeting', { name: profile.firstName || profile.lastName }) : t('dashboard.greetingGuest')}
       </Text>

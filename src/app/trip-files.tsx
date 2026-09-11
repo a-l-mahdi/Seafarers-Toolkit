@@ -24,7 +24,7 @@ export default function TripFilesScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <HeaderBar title={t('tripFiles.title')} onBack={() => router.back()} />
-      <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}>
+      <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}>
         <Card>
           <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}>
             {contract?.vesselName ?? '—'}

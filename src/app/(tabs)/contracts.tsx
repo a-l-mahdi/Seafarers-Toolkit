@@ -32,7 +32,7 @@ export default function ContractsScreen() {
           ),
         }}
       />
-      <FlatList nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+      <FlatList showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
         contentContainerStyle={styles.list}
         data={contracts ?? []}
         keyExtractor={(item) => item.id}

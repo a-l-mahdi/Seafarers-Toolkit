@@ -46,7 +46,7 @@ export default function CareerScreen() {
     activeContract?.expectedSignOff ?? null
   );
   return (
-    <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+    <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       contentContainerStyle={styles.container}
       style={{ backgroundColor: colors.background }}
     >

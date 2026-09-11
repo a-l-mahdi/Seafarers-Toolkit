@@ -44,7 +44,7 @@ export default function DocumentsScreen() {
           ),
         }}
       />
-      <FlatList nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+      <FlatList showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
         contentContainerStyle={styles.list}
         data={documents ?? []}
         keyExtractor={(item) => item.id}

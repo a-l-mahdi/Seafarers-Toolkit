@@ -40,6 +40,8 @@ export interface ContainerHeader {
   exportedAt: string;
   tables: Record<string, Record<string, unknown>[]>;
   files: ContainerFileEntry[];
+  /** App preferences (language/theme/calendar) restored with the backup. */
+  appSettings?: { locale: string; theme: string; calendar: string } | null;
 }
 
 export interface ParsedContainer {

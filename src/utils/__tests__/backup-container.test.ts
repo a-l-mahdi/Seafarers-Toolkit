@@ -15,19 +15,19 @@ describe('backup container', () => {
   it('round-trips header and raw blobs (persian metadata, password)', () => {
     const blob1 = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     const blob2 = new Uint8Array([201, 202, 203, 204, 205]);
-    const containerB64 = buildContainerBytes(header, 'S3cret!', [blob1, blob2]);
+    const withSettings = { ...header, appSettings: { locale: 'fa', theme: 'dark', calendar: 'jalali' } };
+    const containerB64 = buildContainerBytes(withSettings, 'S3cret!', [blob1, blob2]);
     const bytes = base64ToBytes(containerB64);
 
     // Magic is visible and payload bytes are NOT readable as text.
     const magicStr = String.fromCharCode(...bytes.subarray(0, CONTAINER_MAGIC.length - 1));
     expect(magicStr).toBe(CONTAINER_MAGIC.trim());
-    const blobBytes = bytes.subarray(11 /* from test dataOffset check below */);
-    void blobBytes;
 
     const parsed = parseContainerHeader(bytes, 'S3cret!');
     expect(parsed).not.toBeNull();
     const { header: parsedHeader, dataOffset } = parsed!;
     expect(parsedHeader.version).toBe(2);
+    expect(parsedHeader.appSettings).toEqual({ locale: 'fa', theme: 'dark', calendar: 'jalali' });
     expect(parsedHeader.tables.documents).toEqual([{ id: 'd1', name: 'گواهی' }]);
     expect(parsedHeader.files).toHaveLength(2);
     // Blobs must land exactly where the header says.

@@ -26,6 +26,14 @@ const TABLES = [
 
 const BACKUP_VERSION = 2;
 
+/** App-level preferences (language/theme/calendar) that live in SecureStore,
+ *  included in the backup so they come back after a restore. */
+export interface BackupAppSettings {
+  locale: string;
+  theme: string;
+  calendar: string;
+}
+
 /**
  * Insert order for restore: parents BEFORE children, otherwise the FK
  * constraints (documents ← document_files, contracts ← trip_files, …) fail
@@ -87,7 +95,8 @@ async function collectFilePaths(): Promise<string[]> {
  */
 export async function createBackup(
   password: string,
-  onProgress?: ProgressFn
+  onProgress?: ProgressFn,
+  appSettings?: BackupAppSettings
 ): Promise<{ count: number; size: number }> {
   const db = await openDatabase();
   const tables: Record<string, Record<string, unknown>[]> = {};
@@ -130,6 +139,7 @@ export async function createBackup(
     exportedAt: new Date().toISOString(),
     tables,
     files: entries,
+    appSettings: appSettings ?? null,
   };
   const containerB64 = buildContainerBytes(header, password, blobs);
   tick();
@@ -168,7 +178,7 @@ export async function restoreBackup(
   fileUri: string,
   password: string,
   onProgress?: ProgressFn
-): Promise<{ count: number; files: number }> {
+): Promise<{ count: number; files: number; appSettings: BackupAppSettings | null }> {
   const uri = fileUri;
   const info = await FileSystem.getInfoAsync(uri);
   const size = info.exists && 'size' in info ? Number((info as { size?: number }).size ?? 0) : 0;
@@ -188,11 +198,13 @@ export async function restoreBackup(
   let dataOffset = 0;
 
   const parsed = parseContainerHeader(headBytes, password);
+  let appSettings: BackupAppSettings | null = null;
   if (parsed) {
     if (parsed.header.version !== BACKUP_VERSION) throw new Error('INVALID_BACKUP');
     tables = parsed.header.tables;
     fileEntries = parsed.header.files;
     dataOffset = parsed.dataOffset;
+    appSettings = parsed.header.appSettings ?? null;
   } else {
     let legacyParsed: {
       version: number;
@@ -282,7 +294,7 @@ export async function restoreBackup(
   }
   tick();
 
-  return { count: rowTotal, files: restoredFiles };
+  return { count: rowTotal, files: restoredFiles, appSettings };
 }
 
 async function writeBase64File(dest: string, data: string): Promise<void> {

@@ -95,6 +95,7 @@ function BackupCard() {
   const [progress, setProgress] = useState<number | null>(null);
   const [pickedFile, setPickedFile] = useState<{ uri: string; name: string } | null>(null);
   const [dialog, setDialog] = useState<'backup' | 'restore' | null>(null);
+  const { locale, theme, calendar, setLocale, setTheme, setCalendar } = useSettingsStore();
 
   const runProgress: ProgressFn = (fraction) => setProgress(fraction);
 
@@ -104,7 +105,7 @@ function BackupCard() {
     setStatus(null);
     setProgress(0);
     try {
-      const { count } = await createBackup(password, runProgress);
+      const { count } = await createBackup(password, runProgress, { locale, theme, calendar });
       setStatus({ text: t('settings.backupDone', { count }), tone: 'success' });
     } catch {
       setStatus({ text: t('settings.backupFailed'), tone: 'error' });
@@ -130,7 +131,23 @@ function BackupCard() {
     setProgress(0);
     const run = async () => {
       try {
-        const { count, files } = await restoreBackup(pickedFile.uri, password, runProgress);
+        const { count, files, appSettings } = await restoreBackup(
+          pickedFile.uri,
+          password,
+          runProgress
+        );
+        // Bring back language/theme/calendar exactly as they were backed up.
+        if (appSettings) {
+          const restoredLocale = (appSettings.locale === 'fa' ? 'fa' : 'en') as 'en' | 'fa';
+          setLocale(restoredLocale);
+          await changeLocale(restoredLocale);
+          setTheme(appSettings.theme === 'dark' || appSettings.theme === 'light' ? appSettings.theme : 'system');
+          setCalendar(appSettings.calendar === 'jalali' ? 'jalali' : 'gregorian');
+          // Language direction flip needs a restart to take effect.
+          if (isRTL(restoredLocale) !== I18nManager.isRTL) {
+            void Updates.reloadAsync();
+          }
+        }
         setStatus({ text: t('settings.restoreDone', { count, files }), tone: 'success' });
       } catch (err) {
         setStatus({

@@ -91,7 +91,7 @@ function BackupCard() {
   const { t } = useTranslation();
   const colors = useTheme();
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [pickedFile, setPickedFile] = useState<{ uri: string; name: string } | null>(null);
   const [dialog, setDialog] = useState<'backup' | 'restore' | null>(null);
@@ -105,9 +105,9 @@ function BackupCard() {
     setProgress(0);
     try {
       const { count } = await createBackup(password, runProgress);
-      setStatus(t('settings.backupDone', { count }));
+      setStatus({ text: t('settings.backupDone', { count }), tone: 'success' });
     } catch {
-      setStatus(t('settings.backupFailed'));
+      setStatus({ text: t('settings.backupFailed'), tone: 'error' });
     } finally {
       setBusy(false);
       setProgress(null);
@@ -124,18 +124,22 @@ function BackupCard() {
 
   const doRestore = (password: string) => {
     if (!pickedFile) return;
+    // Close the password popup immediately; the progress bar takes over.
+    setDialog(null);
     setBusy(true);
     setProgress(0);
     const run = async () => {
       try {
         const { count, files } = await restoreBackup(pickedFile.uri, password, runProgress);
-        setStatus(t('settings.restoreDone', { count, files }));
+        setStatus({ text: t('settings.restoreDone', { count, files }), tone: 'success' });
       } catch (err) {
-        setStatus(
-          err instanceof Error && err.message === 'WRONG_PASSWORD'
-            ? t('settings.wrongPassword')
-            : t('settings.restoreFailed')
-        );
+        setStatus({
+          text:
+            err instanceof Error && err.message === 'WRONG_PASSWORD'
+              ? t('settings.wrongPassword')
+              : t('settings.restoreFailed'),
+          tone: 'error',
+        });
       } finally {
         setBusy(false);
         setProgress(null);
@@ -178,7 +182,17 @@ function BackupCard() {
           </Text>
         </View>
       ) : null}
-      {status ? <Text style={{ color: colors.success, fontSize: 13, marginTop: Spacing.sm }}>{status}</Text> : null}
+      {status ? (
+        <Text
+          style={{
+            color: status.tone === 'error' ? colors.danger : colors.success,
+            fontSize: 13,
+            marginTop: Spacing.sm,
+          }}
+        >
+          {status.text}
+        </Text>
+      ) : null}
       {dialog === 'backup' ? (
         <BackupPasswordDialog
           title={t('settings.backupPasswordTitle')}

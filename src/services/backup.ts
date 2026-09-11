@@ -4,9 +4,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import { openDatabase } from '@/database/db';
 import {
   obfuscateText,
-  deobfuscateText,
   obfuscateWithPassword,
-  deobfuscateWithPassword,
+  deobfuscateBytesStatic,
+  deobfuscateBytesWithPassword,
   base64ToBytes,
   utf8BytesToString,
 } from '@/utils/xor-codec';
@@ -129,9 +129,9 @@ export async function pickBackupFile(): Promise<{ uri: string; name: string } | 
 
 /**
  * Restores the previously picked backup file (uri from pickBackupFile).
- * Overwrites current data. Plain-JSON (very old) backups restore without a
- * password; obfuscated ones require the exact backup password. The file is
- * always read as base64 bytes — never as UTF-8 text (binary-safe).
+ * Overwrites current data. The file is read in chunks (binary-safe, no huge
+ * single read) and decoded incrementally. Plain-JSON (very old) backups
+ * restore without a password; obfuscated ones require the exact password.
  */
 export async function restoreBackup(
   fileUri: string,
@@ -139,36 +139,61 @@ export async function restoreBackup(
   onProgress?: ProgressFn
 ): Promise<{ count: number; files: number }> {
   const uri = fileUri;
+  const info = await FileSystem.getInfoAsync(uri);
+  const size = info.exists && 'size' in info ? Number((info as { size?: number }).size ?? 0) : 0;
 
-  const payloadB64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-  let text: string;
-  try {
-    text = utf8BytesToString(base64ToBytes(payloadB64));
-  } catch {
-    throw new Error('INVALID_BACKUP');
+  // Read in 3 MB chunks (divisible by 3 so chunk base64s concatenate cleanly).
+  const CHUNK = 3 * 1024 * 1024;
+  const chunksTotal = Math.max(Math.ceil(size / CHUNK), 1);
+  const chunks: Uint8Array[] = [];
+  let offset = 0;
+  let readDone = 0;
+  while (offset < Math.max(size, 1)) {
+    const b64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+      position: offset,
+      length: CHUNK,
+    });
+    chunks.push(base64ToBytes(b64));
+    offset += CHUNK;
+    readDone += 1;
+    onProgress?.(Math.min((0.1 * readDone) / chunksTotal, 0.1));
   }
+
+  const totalBytes = chunks.reduce((acc, c) => acc + c.length, 0);
+  const raw = new Uint8Array(totalBytes);
+  let cursor = 0;
+  for (const c of chunks) {
+    raw.set(c, cursor);
+    cursor += c.length;
+  }
+
   let backup: BackupFile;
-  if (text.trim().startsWith('{')) {
+  if (raw[0] === 0x7b) {
     // Very old plain-JSON backup — restore without a password.
     try {
-      backup = JSON.parse(text) as BackupFile;
+      backup = JSON.parse(utf8BytesToString(raw)) as BackupFile;
     } catch {
       throw new Error('INVALID_BACKUP');
     }
   } else {
+    onProgress?.(0.12);
     let backupParsed: BackupFile | null = null;
     try {
-      // Legacy builds obfuscated with the static secret only (no password).
-      backupParsed = JSON.parse(deobfuscateText(payloadB64)) as BackupFile;
+      backupParsed = JSON.parse(deobfuscateBytesWithPassword(raw, password)) as BackupFile;
     } catch {
       try {
-        backupParsed = JSON.parse(deobfuscateWithPassword(payloadB64, password)) as BackupFile;
+        backupParsed = JSON.parse(deobfuscateBytesStatic(raw)) as BackupFile;
       } catch {
         throw new Error('WRONG_PASSWORD');
       }
     }
     if (!backupParsed) throw new Error('WRONG_PASSWORD');
     backup = backupParsed;
+    onProgress?.(0.2);
+  }
+  if (!backup || backup.version !== BACKUP_VERSION || !backup.tables) {
+    throw new Error('INVALID_BACKUP');
   }
   if (!backup || backup.version !== BACKUP_VERSION || !backup.tables) {
     throw new Error('INVALID_BACKUP');

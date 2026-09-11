@@ -15,7 +15,7 @@ describe('xor-codec', () => {
 
   it('base64 round-trips byte arrays', () => {
     const bytes = [0, 1, 2, 250, 251, 252, 253, 254, 255, 127, 128];
-    expect(base64ToBytes(bytesToBase64(bytes))).toEqual(bytes);
+    expect(Array.from(base64ToBytes(bytesToBase64(new Uint8Array(bytes))))).toEqual(bytes);
   });
 
   it('obfuscated payload is not readable as plain json', () => {
@@ -42,5 +42,18 @@ describe('xor-codec', () => {
     expect(deobfuscateWithPassword(payload, 'S3cret!')).toBe(json);
     expect(payload).not.toContain('پاسپورت');
     expect(deobfuscateWithPassword(payload, 'wrong')).not.toBe(json);
+  });
+
+  it('round-trips a multi-MB backup payload (realistic photo-heavy backup)', () => {
+    const fileData = Array.from({ length: 2_000_000 }, (_, i) => String.fromCharCode(65 + (i % 26))).join('');
+    const json = JSON.stringify({
+      version: 1,
+      tables: { documents: [{ id: 'd1', name: 'گواهی' }] },
+      files: [{ path: 'documents/d1/scan.jpg', data: fileData }],
+    });
+    const payload = obfuscateWithPassword(json, 'S3cret!');
+    expect(deobfuscateWithPassword(payload, 'S3cret!')).toBe(json);
+    // legacy static variant round-trips too
+    expect(deobfuscateText(obfuscateText(json))).toBe(json);
   });
 });

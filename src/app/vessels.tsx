@@ -57,7 +57,21 @@ function VesselRow(props: { id: string; name: string; imo: string | null; flag: 
   const confirmDelete = () => {
     Alert.alert(t('common.delete'), t('common.confirmDelete'), [
       { text: t('common.cancel'), style: 'cancel' },
-      { text: t('common.delete'), style: 'destructive', onPress: () => remove.mutate(props.id) },
+      {
+        text: t('common.delete'),
+        style: 'destructive',
+        onPress: () =>
+          remove.mutate(props.id, {
+            onError: (err) => {
+              Alert.alert(
+                t('common.delete'),
+                err instanceof Error && err.message === 'VESSEL_IN_USE'
+                  ? t('vessels.inUse')
+                  : t('vessels.deleteFailed')
+              );
+            },
+          }),
+      },
     ]);
   };
 

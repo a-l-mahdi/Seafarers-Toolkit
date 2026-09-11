@@ -71,6 +71,13 @@ export async function saveVessel(
 
 export async function deleteVessel(id: string): Promise<void> {
   const db = await openDatabase();
+  // Deleting a vessel referenced by contracts would trip the FK (contracts
+  // have NOT NULL vessel_id). Refuse clearly instead of failing silently.
+  const refs = await db.getFirstAsync<{ c: number }>(
+    'SELECT COUNT(*) AS c FROM contracts WHERE vessel_id = ?',
+    id
+  );
+  if ((refs?.c ?? 0) > 0) throw new Error('VESSEL_IN_USE');
   await db.runAsync('DELETE FROM vessels WHERE id = ?', id);
 }
 

@@ -149,6 +149,7 @@ const fa: Translation = {
     expectedSignOff: 'پایان پیش‌بینی‌شده',
     actualSignOff: 'پایان واقعی',
     signOff: 'ثبت پایان قرارداد',
+    tripNo: 'سفر {{n}}',
     signOffConfirm: 'پایان قرارداد ثبت و بسته شود؟',
     notes: 'یادداشت',
     active: 'فعال',
@@ -183,6 +184,8 @@ const fa: Translation = {
     management: 'شرکت مدیریت',
     notes: 'یادداشت',
     noVessels: 'هنوز کشتی ثبت نشده است',
+    inUse: 'این کشتی در قراردادهای ثبت‌شده استفاده شده است. ابتدا قراردادهای مرتبط را حذف یا ویرایش کنید.',
+    deleteFailed: 'حذف کشتی ممکن نشد.',
     errors: {
       nameRequired: 'نام کشتی الزامی است',
       imoInvalid: 'شماره IMO باید ۷ رقم با رقم کنترل معتبر باشد',

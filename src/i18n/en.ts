@@ -147,6 +147,7 @@ const en = {
     expectedSignOff: 'Expected Sign Off',
     actualSignOff: 'Actual Sign Off',
     signOff: 'Sign Off',
+    tripNo: 'Trip {{n}}',
     signOffConfirm: 'Record sign off and close this contract?',
     notes: 'Notes',
     active: 'Active',
@@ -181,6 +182,8 @@ const en = {
     management: 'Management Company',
     notes: 'Notes',
     noVessels: 'No vessels yet',
+    inUse: 'This vessel is used in existing contracts. Delete or edit those contracts first.',
+    deleteFailed: 'Could not delete the vessel.',
     errors: {
       nameRequired: 'Vessel name is required',
       imoInvalid: 'IMO number must be 7 digits with a valid check digit',

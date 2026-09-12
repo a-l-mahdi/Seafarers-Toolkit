@@ -62,29 +62,86 @@ export interface BackupFile {
 
 export type ProgressFn = (fraction: number) => void;
 
-/** Collects every attached file (photos/PDFs) stored under documents/ and trips/. */
+/** Top-level folders under the document directory that must NOT be backed up as
+ *  raw files: the SQLite database is captured as table rows instead. */
+const SKIP_TOP_DIRS = new Set(['SQLite']);
+
+/**
+ * Collects EVERY user file under the app's document directory (document scans,
+ * trip files, profile photos, anything the user attaches), recursively — so a
+ * backup is complete regardless of which sub-folder a feature stored it in.
+ * The SQLite folder is skipped (its data travels as table rows).
+ */
 async function collectFilePaths(): Promise<string[]> {
+  const root = FileSystem.documentDirectory ?? '';
+  if (!root) return [];
   const paths: string[] = [];
-  const roots = [
-    `${FileSystem.documentDirectory ?? ''}documents/`,
-    `${FileSystem.documentDirectory ?? ''}trips/`,
-  ];
-  for (const root of roots) {
-    const info = await FileSystem.getInfoAsync(root);
-    if (!info.exists) continue;
-    for (const entry of await FileSystem.readDirectoryAsync(root)) {
-      const sub = `${root}${entry}`;
-      const subInfo = await FileSystem.getInfoAsync(sub);
-      if (subInfo.isDirectory) {
-        for (const name of await FileSystem.readDirectoryAsync(sub)) {
-          paths.push(`${sub}/${name}`);
-        }
+  const walk = async (dir: string): Promise<void> => {
+    let names: string[];
+    try {
+      names = await FileSystem.readDirectoryAsync(dir);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const full = `${dir}${name}`;
+      const info = await FileSystem.getInfoAsync(full);
+      if (info.isDirectory) {
+        if (dir === root && SKIP_TOP_DIRS.has(name)) continue;
+        await walk(`${full}/`);
       } else {
-        paths.push(sub);
+        paths.push(full);
+      }
+    }
+  };
+  await walk(root);
+  return paths;
+}
+
+/**
+ * After a restore the DB rows carry the absolute paths they had when the backup
+ * was made (which include the *old* app sandbox / package). Rebase every stored
+ * file path onto the CURRENT document directory so attachments resolve even
+ * after a reinstall, a different device, or the package rename.
+ */
+async function normalizeRestoredPaths(
+  db: Awaited<ReturnType<typeof openDatabase>>
+): Promise<void> {
+  const docDir = FileSystem.documentDirectory ?? '';
+  if (!docDir) return;
+  const rebase = (p: string | null): string | null => {
+    if (!p || typeof p !== 'string') return p;
+    const marker = '/files/';
+    const i = p.lastIndexOf(marker);
+    if (i >= 0) return `${docDir}${p.slice(i + marker.length)}`;
+    for (const m of ['documents/', 'trips/', 'photos/']) {
+      const j = p.indexOf(m);
+      if (j >= 0) return `${docDir}${p.slice(j)}`;
+    }
+    return p;
+  };
+
+  for (const table of ['document_files', 'trip_files'] as const) {
+    const rows = await db.getAllAsync<{ id: string; local_path: string | null }>(
+      `SELECT id, local_path FROM ${table}`
+    );
+    for (const row of rows) {
+      const next = rebase(row.local_path);
+      if (next && next !== row.local_path) {
+        await db.runAsync(`UPDATE ${table} SET local_path = ? WHERE id = ?`, next, row.id);
       }
     }
   }
-  return paths;
+
+  const profiles = await db.getAllAsync<{ id: string; photo_path: string | null }>(
+    'SELECT id, photo_path FROM profile'
+  );
+  for (const row of profiles) {
+    const next = rebase(row.photo_path);
+    if (next && next !== row.photo_path) {
+      await db.runAsync('UPDATE profile SET photo_path = ? WHERE id = ?', next, row.id);
+    }
+  }
 }
 
 /**
@@ -292,6 +349,9 @@ export async function restoreBackup(
       tick();
     }
   }
+
+  // Point the restored DB rows at the current document directory.
+  await normalizeRestoredPaths(db);
   tick();
 
   return { count: rowTotal, files: restoredFiles, appSettings };

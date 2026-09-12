@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { I18nManager, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  I18nManager,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, ProgressBar } from '@/components/ui/primitives';
@@ -264,8 +274,12 @@ function BackupPasswordDialog({
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={styles.dialogBackdrop} onPress={onCancel}>
-        <Pressable style={[styles.dialogSheet, { backgroundColor: colors.surface }]} onPress={() => undefined}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <Pressable style={styles.dialogBackdrop} onPress={onCancel}>
+          <Pressable style={[styles.dialogSheet, { backgroundColor: colors.surface }]} onPress={() => undefined}>
           <Text style={[styles.dialogTitle, { color: colors.text }]}>{title}</Text>
           <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: Spacing.md }}>{hint}</Text>
           <LabeledInput
@@ -303,8 +317,9 @@ function BackupPasswordDialog({
               <Text style={{ color: colors.onPrimary, fontWeight: '600' }}>{t('common.confirm')}</Text>
             </Pressable>
           </View>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

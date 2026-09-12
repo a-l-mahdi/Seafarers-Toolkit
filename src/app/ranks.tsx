@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card } from '@/components/ui/primitives';
-import { LabeledInput, Select } from '@/components/ui/form';
+import { FormScrollView, LabeledInput, Select } from '@/components/ui/form';
 import { useCreateRank, useDeleteRank, useMoveRank, useRanks, useUpdateRank } from '@/hooks/queries';
 import { isTopRank, promotionDaysFromMonths } from '@/domain/career';
 import { buildRankColorMap } from '@/domain/rank-color';
@@ -90,7 +90,7 @@ export default function RanksScreen() {
   const isDepartmentTop = (rank: RankType) => isTopRank(rank.id, ranks ?? []);
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.container, { paddingBottom: Spacing.xxl + insets.bottom }]} style={{ backgroundColor: colors.background }}>
+    <FormScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.container, { paddingBottom: Spacing.xxl + insets.bottom }]} style={{ backgroundColor: colors.background }}>
       <Stack.Screen
         options={{
           headerShown: true,
@@ -217,7 +217,7 @@ export default function RanksScreen() {
       {editing ? (
         <Button label={t('common.save')} onPress={saveChanges} />
       ) : null}
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

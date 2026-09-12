@@ -89,28 +89,47 @@ export function LabeledInput({
   const colors = useTheme();
   const inputRef = useRef<TextInput>(null);
   const scrollHelper = useContext(ScrollToInputContext);
+  const isPassword = !!secureTextEntry;
+  const [reveal, setReveal] = useState(false);
   return (
     <View style={styles.field}>
       <Text style={[styles.label, { color: colors.textMuted }]}>{label}</Text>
-      <TextInput
-        ref={inputRef}
+      <View
         style={[
-          styles.input,
-          { backgroundColor: colors.surface, borderColor: error ? colors.danger : colors.border, color: colors.text },
+          styles.inputWrap,
+          {
+            backgroundColor: colors.surface,
+            borderColor: error ? colors.danger : colors.border,
+            alignItems: multiline ? 'flex-start' : 'center',
+          },
         ]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textMuted}
-        keyboardType={keyboardType}
-        multiline={multiline}
-        secureTextEntry={secureTextEntry}
-        autoCapitalize="none"
-        // Multiline inputs no longer swallow vertical drags: the page scrolls
-        // and the field auto-grows instead of scrolling internally.
-        scrollEnabled={multiline ? false : undefined}
-        onFocus={() => scrollHelper?.scrollToInput(inputRef)}
-      />
+      >
+        <TextInput
+          ref={inputRef}
+          style={[styles.inputInner, { color: colors.text }]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.textMuted}
+          keyboardType={keyboardType}
+          multiline={multiline}
+          secureTextEntry={isPassword && !reveal}
+          autoCapitalize="none"
+          // Multiline inputs no longer swallow vertical drags: the page scrolls
+          // and the field auto-grows instead of scrolling internally.
+          scrollEnabled={multiline ? false : undefined}
+          onFocus={() => scrollHelper?.scrollToInput(inputRef)}
+        />
+        {isPassword ? (
+          <Pressable onPress={() => setReveal((r) => !r)} hitSlop={8} style={styles.eyeBtn}>
+            <Ionicons
+              name={reveal ? 'eye-outline' : 'eye-off-outline'}
+              size={20}
+              color={colors.textMuted}
+            />
+          </Pressable>
+        ) : null}
+      </View>
       {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
     </View>
   );
@@ -245,6 +264,18 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm + 2,
     fontSize: 15,
   },
+  inputWrap: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+  },
+  inputInner: {
+    flex: 1,
+    paddingVertical: Spacing.sm + 2,
+    fontSize: 15,
+  },
+  eyeBtn: { paddingLeft: Spacing.sm, paddingVertical: Spacing.sm },
   selectTrigger: { justifyContent: 'center', minHeight: 44 },
   error: { fontSize: 12, marginTop: 4 },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end' },

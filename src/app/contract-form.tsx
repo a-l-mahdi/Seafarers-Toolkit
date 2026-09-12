@@ -7,6 +7,7 @@ import { FormScrollView, HeaderBar, LabeledInput, Select } from '@/components/ui
 import { DatePickerField } from '@/components/ui/date-picker';
 import { ContractFilesSection } from '@/components/contract-files';
 import { FileGallery, type DisplayFile } from '@/components/file-gallery';
+import { AttachSourceRow } from '@/components/attach-source-row';
 import { useAddTripFile, useContracts, useDeleteContract, useRanks, useSaveContract, useVessels } from '@/hooks/queries';
 import { expectedSignOff, contractRangesOverlap, type DurationInput } from '@/domain/contract';
 import { isISODate } from '@/utils/date';
@@ -272,17 +273,7 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
               files={pending}
               onRemove={(id) => setPending((p) => p.filter((f) => f.id !== id))}
             />
-            <View style={styles.fileActions}>
-              <Text style={{ color: colors.primary, fontWeight: '600' }} onPress={() => void handleAdd('camera')}>
-                + {t('tripFiles.camera')}
-              </Text>
-              <Text style={{ color: colors.primary, fontWeight: '600' }} onPress={() => void handleAdd('gallery')}>
-                + {t('tripFiles.gallery')}
-              </Text>
-              <Text style={{ color: colors.primary, fontWeight: '600' }} onPress={() => void handleAdd('file')}>
-                + {t('tripFiles.pdf')}
-              </Text>
-            </View>
+            <AttachSourceRow onPick={(s) => void handleAdd(s)} />
           </View>
         )}
         {errors.map((err, i) => (
@@ -314,5 +305,4 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
   flexBtn: { flex: 1 },
   filesSection: { marginTop: Spacing.sm, gap: Spacing.sm },
-  fileActions: { flexDirection: 'row', gap: Spacing.lg, flexWrap: 'wrap' },
 });

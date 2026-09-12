@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { FileGallery, type DisplayFile } from '@/components/file-gallery';
+import { AttachSourceRow } from '@/components/attach-source-row';
 import { useAddTripFile, useDeleteTripFile, useTripFiles } from '@/hooks/queries';
 import { capturePhoto, pickPhoto } from '@/services/image-capture';
 import { pickDocumentFile, importUriFile, isAllowedFileType, removeImportedFile } from '@/services/file-storage';
 import { useTheme } from '@/hooks/use-theme';
-import { Radius, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import type { TripFileKind } from '@/database/repositories/trip-files-repository';
 
 /**
@@ -94,17 +95,7 @@ function FileGroup({
         }}
       />
       {menuFor ? (
-        <View style={[styles.menu, { borderColor: colors.border }]}>
-          <Pressable style={styles.menuItem} onPress={() => void addFrom('camera')}>
-            <Text style={{ color: colors.text }}>{t('tripFiles.camera')}</Text>
-          </Pressable>
-          <Pressable style={styles.menuItem} onPress={() => void addFrom('gallery')}>
-            <Text style={{ color: colors.text }}>{t('tripFiles.gallery')}</Text>
-          </Pressable>
-          <Pressable style={styles.menuItem} onPress={() => void addFrom('file')}>
-            <Text style={{ color: colors.text }}>{t('tripFiles.pdf')}</Text>
-          </Pressable>
-        </View>
+        <AttachSourceRow onPick={(s) => void addFrom(s)} />
       ) : (
         <Text style={{ color: colors.primary, fontWeight: '600' }} onPress={() => setMenuFor(true)}>
           + {t('tripFiles.add')}
@@ -118,6 +109,4 @@ const styles = StyleSheet.create({
   section: { marginTop: Spacing.md, gap: Spacing.lg },
   group: { gap: Spacing.sm },
   groupTitle: { fontSize: 14, fontWeight: '700' },
-  menu: { borderWidth: 1, borderRadius: Radius.sm, overflow: 'hidden', marginVertical: 4 },
-  menuItem: { paddingVertical: 10, paddingHorizontal: Spacing.md },
 });

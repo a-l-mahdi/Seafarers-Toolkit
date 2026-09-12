@@ -6,6 +6,7 @@ import { Badge, Button, Card, FieldRow } from '@/components/ui/primitives';
 import { FormScrollView, Checkbox, HeaderBar, LabeledInput, Select } from '@/components/ui/form';
 import { DatePickerField } from '@/components/ui/date-picker';
 import { FileGallery, type DisplayFile } from '@/components/file-gallery';
+import { AttachSourceRow } from '@/components/attach-source-row';
 import {
   useAddDocumentFile,
   useCreateDocumentType,
@@ -246,16 +247,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
           <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: Spacing.md }}>
             {t('documents.scan.hint')}
           </Text>
-          <View style={styles.scanActions}>
-            <Button label={t('documents.scan.camera')} onPress={() => void handleAdd('camera')} style={styles.flexBtn} />
-            <Button
-              label={t('documents.scan.gallery')}
-              onPress={() => void handleAdd('gallery')}
-              variant="secondary"
-              style={styles.flexBtn}
-            />
-          </View>
-          <Button label={t('documents.attachFile')} onPress={() => void handleAdd('file')} variant="secondary" />
+          <AttachSourceRow onPick={(s) => void handleAdd(s)} disabled={scanBusy} />
           {scanBusy ? (
             <View style={styles.busy}>
               <ActivityIndicator color={colors.primary} />
@@ -393,7 +385,6 @@ const styles = StyleSheet.create({
   form: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   statusRow: { alignItems: 'flex-start', marginBottom: Spacing.sm },
   sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
-  scanActions: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
   busy: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: Spacing.md },
   actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
   flexBtn: { flex: 1 },

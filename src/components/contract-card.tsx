@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { contractCountdown, contractProgressColor, type ContractCountdown } from '@/domain/contract';
 import { useFormattedDate } from '@/hooks/use-date-format';

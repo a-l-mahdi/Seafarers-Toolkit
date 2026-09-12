@@ -8,11 +8,21 @@ import { todayISO } from '@/utils/date';
 import { useSignOffContract, type ContractListRow } from '@/hooks/queries';
 
 /**
- * Contract card — implemented exactly per the provided reference design:
- * 1) full-height vertical accent strip colored by rank, 2) digit-only trip
- * number badge, 3) vessel name, 4) status chip, 5) dates + total days row,
- * 6) rank badge, 7) progress bar + remaining days + sign-off button (active only).
- * Accent color and trip number are fully controlled via props.
+ * Contract card — compact list row laid out exactly per the reference wireframe:
+ *
+ *   ┌─┬────┬───────────────────────────────────┐
+ *   │1│ 2  │  3 (vessel) ............ 4 (status)│
+ *   │ │    │  5 (dates) .............. 6 (rank) │
+ *   │ │    │  7 ───────── progress / action ────│
+ *   └─┴────┴───────────────────────────────────┘
+ *
+ * 1) thin full-height strip in the rank color, 2) plain outlined trip-number
+ * box (digit only, no fill), 3) vessel name, 4) status (active/completed),
+ * 5) join → expected/actual sign-off dates, 6) rank, 7) thin progress bar with
+ * a compact remaining + sign-off action (active contracts only).
+ *
+ * The row layout lives on an inner View (not the Pressable) so `Link asChild`
+ * can't drop the flex direction.
  */
 export function ContractCard({
   item,
@@ -22,7 +32,7 @@ export function ContractCard({
   item: ContractListRow;
   /** Trip number within the rank (digit only, controlled by the caller). */
   tripNo: number;
-  /** Dynamic accent color for the strip (based on rank/grade). */
+  /** Rank/grade accent color for the strip and rank badge. */
   rankColor: string;
 }) {
   const { t } = useTranslation();
@@ -34,6 +44,7 @@ export function ContractCard({
   const isActive = item.status === 'active';
   const endDate = item.actualSignOff ?? item.expectedSignOff;
   const totalDays = item.durationDays ?? countdown.totalDays;
+  const statusLabel = t(`contracts.${item.status}`);
 
   const confirmSignOff = () => {
     Alert.alert(t('contracts.signOff'), t('contracts.signOffConfirm'), [
@@ -45,86 +56,87 @@ export function ContractCard({
     ]);
   };
 
-  const statusLabel = t(`contracts.${item.status}`);
-
   return (
     <Link href={`/contract-form?id=${item.id}`} asChild>
       <Pressable style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        {/* ===== 1. Vertical Accent Strip ===== */}
-        <View style={[styles.accentStrip, { backgroundColor: rankColor }]} />
+        <View style={styles.row}>
+          {/* ===== 1. Rank-color strip (full height) ===== */}
+          <View style={[styles.strip, { backgroundColor: rankColor }]} />
 
-        {/* ===== Content Area ===== */}
-        <View style={styles.content}>
-          {/* Top row: Number badge + Title + Status */}
-          <View style={styles.topRow}>
-            {/* 2. Number-only badge */}
-            <View style={styles.numberBadge}>
-              <Text style={styles.numberText}>{String(tripNo)}</Text>
-            </View>
-
-            {/* 3. Vessel name */}
-            <Text style={[styles.vesselName, { color: colors.text }]} numberOfLines={1}>
-              {item.vesselName ?? '—'}
-            </Text>
-
-            {/* 4. Status chip */}
-            <View
-              style={[
-                styles.statusChip,
-                isActive ? styles.statusActive : styles.statusCompleted,
-              ]}
-            >
-              <Text style={[styles.statusText, isActive ? styles.statusTextActive : styles.statusTextCompleted]}>
-                {statusLabel}
-              </Text>
+          {/* ===== 2. Trip number — plain outlined box, no fill ===== */}
+          <View style={styles.numberCol}>
+            <View style={[styles.numberBox, { borderColor: colors.border }]}>
+              <Text style={[styles.numberText, { color: colors.text }]}>{String(tripNo)}</Text>
             </View>
           </View>
 
-          {/* Date + Rank row */}
-          <View style={styles.dateRow}>
-            {/* 5. Dates */}
-            <Text style={[styles.dateText, { color: colors.textMuted }]} numberOfLines={1}>
-              {formatDate(item.joinDate)} → {formatDate(endDate)} · {totalDays} {t('common.days')}
-            </Text>
-
-            {/* 6. Rank badge */}
-            <View style={[styles.rankBadge, { backgroundColor: rankColor }]}>
-              <Text style={styles.rankText}>{item.rankName ?? '—'}</Text>
-            </View>
-          </View>
-
-          {/* ===== 7. Bottom section (only Active) ===== */}
-          {isActive && (
-            <View style={styles.bottomSection}>
-              {/* Progress bar — blue shifting toward green near the end */}
-              <View style={styles.progressTrack}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: `${Math.round(countdown.progress * 100)}%`,
-                      backgroundColor: contractProgressColor(colors, countdown),
-                    },
-                  ]}
-                />
-              </View>
-
-              <Text style={[styles.remainingText, { color: colors.textMuted }]}>
-                {t('dashboard.remaining')}: {countdown.remainingDays} {t('common.days')}
+          {/* ===== Content ===== */}
+          <View style={styles.content}>
+            {/* 3. Vessel + 4. Status */}
+            <View style={styles.line}>
+              <Text style={[styles.vessel, { color: colors.text }]} numberOfLines={1}>
+                {item.vesselName ?? '—'}
               </Text>
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.signOffButton,
-                  { backgroundColor: colors.surfaceMuted },
-                  pressed && { opacity: 0.85 },
+              <View
+                style={[
+                  styles.statusChip,
+                  { backgroundColor: isActive ? colors.successMuted : colors.surfaceMuted },
                 ]}
-                onPress={confirmSignOff}
               >
-                <Text style={styles.signOffText}>{t('contracts.signOff')}</Text>
-              </Pressable>
+                <Text
+                  style={[styles.statusText, { color: isActive ? colors.success : colors.textMuted }]}
+                >
+                  {statusLabel}
+                </Text>
+              </View>
             </View>
-          )}
+
+            {/* 5. Dates + 6. Rank */}
+            <View style={[styles.line, styles.lineGap]}>
+              <Text style={[styles.dates, { color: colors.textMuted }]} numberOfLines={1}>
+                {formatDate(item.joinDate)} → {formatDate(endDate)} · {totalDays} {t('common.days')}
+              </Text>
+              <View style={[styles.rankBadge, { backgroundColor: rankColor }]}>
+                <Text style={styles.rankText} numberOfLines={1}>
+                  {item.rankName ?? '—'}
+                </Text>
+              </View>
+            </View>
+
+            {/* 7. Progress + compact action (active only) */}
+            {isActive && (
+              <>
+                <View style={[styles.track, { backgroundColor: colors.surfaceMuted }]}>
+                  <View
+                    style={[
+                      styles.fill,
+                      {
+                        width: `${Math.round(countdown.progress * 100)}%`,
+                        backgroundColor: contractProgressColor(colors, countdown),
+                      },
+                    ]}
+                  />
+                </View>
+                <View style={styles.actionRow}>
+                  <Text style={[styles.remaining, { color: colors.textMuted }]} numberOfLines={1}>
+                    {t('dashboard.remaining')}: {countdown.remainingDays} {t('common.days')}
+                  </Text>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.signOffBtn,
+                      { backgroundColor: colors.primary },
+                      pressed && { opacity: 0.85 },
+                    ]}
+                    onPress={confirmSignOff}
+                  >
+                    <Text style={[styles.signOffText, { color: colors.onPrimary }]}>
+                      {t('contracts.signOff')}
+                    </Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
         </View>
       </Pressable>
     </Link>
@@ -133,131 +145,130 @@ export function ContractCard({
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    elevation: 3,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
     overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+  },
+  // Inner row — guarantees the horizontal layout regardless of Link/Pressable.
+  row: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
   },
 
-  // 1. Vertical accent
-  accentStrip: {
+  // 1. Rank strip
+  strip: {
     width: 6,
   },
 
-  content: {
-    flex: 1,
-    padding: 16,
-    paddingLeft: 12,
-    gap: 0,
-  },
-
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-
-  // 2. Number badge
-  numberBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#1A237E',
+  // 2. Number box (outlined, no fill, vertically centered)
+  numberCol: {
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    paddingHorizontal: 10,
+  },
+  numberBox: {
+    minWidth: 30,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    borderWidth: 1.5,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   numberText: {
-    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
   },
 
-  // 3. Vessel name
-  vesselName: {
+  // Content
+  content: {
     flex: 1,
-    fontSize: 17,
-    fontWeight: '700',
+    paddingVertical: 10,
+    paddingRight: 12,
+    paddingLeft: 2,
   },
-
-  // 4. Status chip
-  statusChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  statusActive: {
-    backgroundColor: '#E8F5E9',
-  },
-  statusCompleted: {
-    backgroundColor: '#F5F5F5',
-  },
-  statusText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  statusTextActive: {
-    color: '#2E7D32',
-  },
-  statusTextCompleted: {
-    color: '#757575',
-  },
-
-  // Date + Rank
-  dateRow: {
+  line: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
   },
-  dateText: {
-    flex: 1,
-    fontSize: 13,
+  lineGap: {
+    marginTop: 5,
   },
 
-  // 6. Rank badge
-  rankBadge: {
+  // 3. Vessel
+  vessel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    marginRight: 8,
+  },
+
+  // 4. Status
+  statusChip: {
     paddingHorizontal: 10,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 20,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // 5. Dates
+  dates: {
+    flex: 1,
+    fontSize: 12,
+    marginRight: 8,
+  },
+
+  // 6. Rank
+  rankBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 2,
+    borderRadius: 5,
+    maxWidth: 130,
   },
   rankText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
 
-  // 7. Bottom
-  bottomSection: {
-    marginTop: 4,
-  },
-  progressTrack: {
+  // 7. Progress + action
+  track: {
     height: 6,
-    backgroundColor: '#E0E0E0',
     borderRadius: 3,
-    marginBottom: 8,
     overflow: 'hidden',
+    marginTop: 9,
   },
-  progressFill: {
+  fill: {
     height: '100%',
     borderRadius: 3,
   },
-  remainingText: {
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  signOffButton: {
-    borderRadius: 12,
-    paddingVertical: 14,
+  actionRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 7,
+  },
+  remaining: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '500',
+    marginRight: 8,
+  },
+  signOffBtn: {
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
   },
   signOffText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1E88E5',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

@@ -85,10 +85,12 @@ const fa: Translation = {
     currentRank: 'درجه فعلی',
     nextRank: 'درجه بعدی',
     departments: {
-      deck: 'رسته عرشه',
-      engine: 'رسته موتور',
-      electro: 'رسته الکتروتکنیکال',
-      other: 'رسته خدمات (سایر)',
+      deck: 'افسران عرشه',
+      engine: 'افسران موتور',
+      electro: 'رسته برق',
+      deck_rating: 'ملوان عرشه',
+      engine_rating: 'ملوان موتور',
+      catering: 'ملوان تدارکات',
     },
   },
   documents: {

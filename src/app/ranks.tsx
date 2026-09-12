@@ -7,12 +7,20 @@ import { Button, Card } from '@/components/ui/primitives';
 import { LabeledInput, Select } from '@/components/ui/form';
 import { useCreateRank, useDeleteRank, useMoveRank, useRanks, useUpdateRank } from '@/hooks/queries';
 import { isTopRank, promotionDaysFromMonths } from '@/domain/career';
+import { buildRankColorMap } from '@/domain/rank-color';
 import { useTheme } from '@/hooks/use-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Radius, Spacing } from '@/constants/theme';
 import type { Department, Rank as RankType } from '@/types/domain';
 
-const DEPARTMENTS: Department[] = ['deck', 'engine', 'electro', 'other'];
+const DEPARTMENTS: Department[] = [
+  'deck',
+  'engine',
+  'electro',
+  'deck_rating',
+  'engine_rating',
+  'catering',
+];
 
 export default function RanksScreen() {
   const { t } = useTranslation();
@@ -23,6 +31,7 @@ export default function RanksScreen() {
   const update = useUpdateRank();
   const move = useMoveRank();
   const remove = useDeleteRank();
+  const rankColors = buildRankColorMap(ranks ?? []);
 
   const [editing, setEditing] = useState(false);
   // Draft values for names + promotion months, applied with the Save button.
@@ -104,7 +113,7 @@ export default function RanksScreen() {
         </Text>
       ) : null}
 
-      {(['deck', 'engine', 'electro', 'other'] as Department[]).map((dep) => {
+      {DEPARTMENTS.map((dep) => {
         const depRanks = (ranks ?? []).filter((r) => r.department === dep);
         if (depRanks.length === 0 && !editing) return null;
         return (
@@ -164,6 +173,7 @@ export default function RanksScreen() {
                     </View>
                   ) : (
                     <View style={styles.viewRow}>
+                      <View style={[styles.colorDot, { backgroundColor: rankColors.get(rank.id) ?? colors.border }]} />
                       <Text style={{ color: colors.text, flex: 1 }}>{rank.name}</Text>
                       <Text style={{ color: colors.textMuted, fontSize: 13 }}>
                         {isDepartmentTop(rank)
@@ -216,6 +226,7 @@ const styles = StyleSheet.create({
   depTitle: { fontSize: 15, fontWeight: '700', marginBottom: Spacing.sm },
   row: { paddingVertical: Spacing.xs },
   viewRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  colorDot: { width: 12, height: 12, borderRadius: 6 },
   editRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   moveCol: { gap: 2, alignItems: 'center' },
   disabled: { opacity: 0.3 },

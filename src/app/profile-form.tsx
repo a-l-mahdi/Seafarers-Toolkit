@@ -81,7 +81,9 @@ function ProfileForm({ initial }: { initial: Profile | null }) {
             { id: 'deck', label: t('profile.departments.deck') },
             { id: 'engine', label: t('profile.departments.engine') },
             { id: 'electro', label: t('profile.departments.electro') },
-            { id: 'other', label: t('profile.departments.other') },
+            { id: 'deck_rating', label: t('profile.departments.deck_rating') },
+            { id: 'engine_rating', label: t('profile.departments.engine_rating') },
+            { id: 'catering', label: t('profile.departments.catering') },
           ]}
           onSelect={(v) => setDepartment(v as Department)}
         />

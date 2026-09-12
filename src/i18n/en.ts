@@ -83,10 +83,12 @@ const en = {
     currentRank: 'Current Rank',
     nextRank: 'Next Rank',
     departments: {
-      deck: 'Deck',
-      engine: 'Engine',
-      electro: 'Electro-Technical',
-      other: 'Other',
+      deck: 'Deck Officers',
+      engine: 'Engine Officers',
+      electro: 'Electrical',
+      deck_rating: 'Deck Ratings',
+      engine_rating: 'Engine Ratings',
+      catering: 'Catering',
     },
   },
   documents: {

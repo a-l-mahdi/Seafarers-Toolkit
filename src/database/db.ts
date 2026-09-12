@@ -200,23 +200,38 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
   const rankCount = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM ranks');
   if (!rankCount || rankCount.c === 0) {
     const defaultRanks: [string, string, number][] = [
+      // Deck officers (gold) — Catering Officer sits at the junior end, above the cadet.
       ['Captain', 'deck', 1],
       ['Chief Officer', 'deck', 2],
       ['2nd Officer', 'deck', 3],
       ['3rd Officer', 'deck', 4],
-      ['Deck Cadet', 'deck', 5],
+      ['Catering Officer', 'deck', 5],
+      ['Deck Cadet', 'deck', 6],
+      // Engine officers (purple)
       ['Chief Engineer', 'engine', 1],
       ['2nd Engineer', 'engine', 2],
       ['3rd Engineer', 'engine', 3],
       ['4th Engineer', 'engine', 4],
       ['Engine Cadet', 'engine', 5],
+      // Electrical / electro-technical (green)
       ['ETO 1', 'electro', 1],
       ['ETO 2', 'electro', 2],
       ['ETR', 'electro', 3],
       ['ETO Cadet', 'electro', 4],
-      ['Bosun', 'other', 3],
-      ['AB (Able Seafarer)', 'other', 4],
-      ['OS (Ordinary Seafarer)', 'other', 5],
+      // Deck ratings (petrol blue)
+      ['Bosun', 'deck_rating', 1],
+      ['Pump Man', 'deck_rating', 2],
+      ['Sea Man 1', 'deck_rating', 3],
+      ['Sea Man 2', 'deck_rating', 4],
+      ['Sea Man 3', 'deck_rating', 5],
+      // Engine ratings (petrol blue)
+      ['Fitter', 'engine_rating', 1],
+      ['Oiler', 'engine_rating', 2],
+      ['Wiper', 'engine_rating', 3],
+      // Catering ratings (silver / white distinction cloth)
+      ['Chief Cook', 'catering', 1],
+      ['1st Cook', 'catering', 2],
+      ['Mess Man', 'catering', 3],
     ];
     for (const [name, department, level] of defaultRanks) {
       await db.runAsync(
@@ -249,6 +264,42 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
   }
   await db.runAsync("UPDATE ranks SET level = 3 WHERE id = 'rank_etr' AND level = 2");
   await db.runAsync('UPDATE ranks SET promotion_months = 12 WHERE promotion_months IS NULL');
+
+  // Rank seed v3 (also applied to existing installs): dedicated rating branches with
+  // maritime "distinction cloth" colours, plus a Catering Officer among the deck officers.
+  // Retire the old generic "other" ratings (Bosun/AB/OS) — replaced by the branches below.
+  await db.runAsync("DELETE FROM ranks WHERE department = 'other' AND is_default = 1");
+  // Any user-created rank still left in the retired department moves to the deck ratings.
+  await db.runAsync("UPDATE ranks SET department = 'deck_rating' WHERE department = 'other'");
+  const rankV3: [string, string, number][] = [
+    // Catering Officer joins the deck officers as a junior officer (above the cadet).
+    ['Catering Officer', 'deck', 5],
+    // Deck ratings (petrol blue)
+    ['Bosun', 'deck_rating', 1],
+    ['Pump Man', 'deck_rating', 2],
+    ['Sea Man 1', 'deck_rating', 3],
+    ['Sea Man 2', 'deck_rating', 4],
+    ['Sea Man 3', 'deck_rating', 5],
+    // Engine ratings (petrol blue)
+    ['Fitter', 'engine_rating', 1],
+    ['Oiler', 'engine_rating', 2],
+    ['Wiper', 'engine_rating', 3],
+    // Catering ratings (silver / white distinction cloth)
+    ['Chief Cook', 'catering', 1],
+    ['1st Cook', 'catering', 2],
+    ['Mess Man', 'catering', 3],
+  ];
+  for (const [name, department, level] of rankV3) {
+    await db.runAsync(
+      'INSERT OR IGNORE INTO ranks (id, department, name, level, promotion_months, is_default) VALUES (?, ?, ?, ?, 12, 1)',
+      `rank_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+      department,
+      name,
+      level
+    );
+  }
+  // The retired "other" department no longer exists in the profile picker.
+  await db.runAsync("UPDATE profile SET department = NULL WHERE department = 'other'");
 
   const docTypeCount = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM document_types');
   if (!docTypeCount || docTypeCount.c === 0) {

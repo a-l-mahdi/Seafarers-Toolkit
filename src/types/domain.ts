@@ -1,4 +1,10 @@
-export type Department = 'deck' | 'engine' | 'electro' | 'other';
+export type Department =
+  | 'deck'
+  | 'engine'
+  | 'electro'
+  | 'deck_rating'
+  | 'engine_rating'
+  | 'catering';
 
 export type SeaFarerStatus = 'on_board' | 'on_leave' | 'available' | 'training' | 'unknown';
 

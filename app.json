@@ -2,7 +2,7 @@
   "expo": {
     "name": "Seafarers Toolkit",
     "slug": "hamid",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "seafarerstoolkit",
@@ -11,14 +11,20 @@
       "icon": "./assets/images/icon.png"
     },
     "android": {
-      "package": "com.seafarer.toolkit",
+      "package": "com.marine.seafarerstoolkit",
       "softwareKeyboardLayoutMode": "resize",
-      "versionCode": 2,
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#0254B6",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png"
       },
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -41,7 +47,8 @@
         "expo-image-picker",
         {
           "cameraPermission": "Allows taking photos of your documents for offline scanning.",
-          "photosPermission": "Allows choosing document photos from your gallery."
+          "photosPermission": "Allows choosing document photos from your gallery.",
+          "microphonePermission": false
         }
       ],
       "expo-sharing"

@@ -67,10 +67,24 @@ Every Play upload needs a higher `versionCode`. Before each release, edit
 
 ## Caveat: don't run `expo prebuild`
 `android/` is hand-maintained. Running `npx expo prebuild` would overwrite
-`build.gradle`/manifest and wipe your Aliyun mirrors **and** this signing config.
-If you ever must regenerate, re-apply: the mirrors, the release signingConfig, and the
-CAMERA/RECORD_AUDIO manifest edits (or rely on the matching `app.json` values, which
-already encode package, versionCode, CAMERA add, and RECORD_AUDIO block).
+`build.gradle`/manifest and wipe the hand edits below. If you ever must regenerate,
+re-apply all of these (some are also encoded in `app.json` so a prebuild reproduces them):
+
+- **`android/build.gradle`**: Aliyun Maven mirrors (dl.google.com is blocked); and the
+  `subprojects { ... forceCompileSdk }` block that forces community modules
+  (react-native-image-picker hard-codes compileSdk 35) to compile against the app's
+  installed SDK (36).
+- **`android/app/build.gradle`**: release `signingConfig` reading `release-keystore.properties`.
+- **`android/app/src/main/AndroidManifest.xml`**: `RECORD_AUDIO` removed and
+  `<uses-permission android:name="android.permission.CAMERA" tools:node="remove"/>`
+  (app.json `blockedPermissions` reproduces both on prebuild).
+
+### Camera without the CAMERA permission
+Camera capture uses `react-native-image-picker` (`launchCamera`, `saveToPhotos:false`),
+which shoots through the system camera app via an `ACTION_IMAGE_CAPTURE` intent and needs
+**no** CAMERA permission. `expo-image-picker` is kept only for gallery picking; its manifest
+declares CAMERA, which is why the `tools:node="remove"` override above is required.
+Trade-off: no in-app crop (expo's `allowsEditing`); capture is full-size to the app cache.
 
 ## Play Console content still required (you do these in the console)
 - [ ] Privacy policy URL — host `store/privacy-policy.html` (contact/publisher already filled in).

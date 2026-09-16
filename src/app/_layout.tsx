@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { Animated, I18nManager, Image, StyleSheet, View } from 'react-native';
+import { Animated, I18nManager, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
+import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -13,6 +16,8 @@ import { openDatabase } from '@/database/db';
 import { initNotifications, syncNotifications } from '@/services/notification-service';
 import { useSettingsStore } from '@/store/settings-store';
 import { listDocuments } from '@/database/repositories/documents-repository';
+
+const SPLASH_BLUE = '#0156C9';
 
 SplashScreen.preventAutoHideAsync();
 I18nManager.allowRTL(true);
@@ -73,12 +78,18 @@ export default function RootLayout() {
     }
   }, [hydrated, dbReady, splashOpacity]);
 
+  const preferDark = theme === 'dark' || (theme === 'system' && scheme === 'dark');
   const navigationTheme = useMemo(() => {
-    const preferDark = theme === 'dark' || (theme === 'system' && scheme === 'dark');
     const base = preferDark ? DarkTheme : DefaultTheme;
     const colors = preferDark ? Colors.dark : Colors.light;
     return { ...base, colors: { ...base.colors, background: colors.background, card: colors.surface, primary: colors.primary, text: colors.text } };
-  }, [theme, scheme]);
+  }, [preferDark]);
+
+  // The bars are edge-to-edge (transparent), so they show the window background.
+  // Keep it blue behind the splash, then match the app theme afterwards.
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(splashHidden ? navigationTheme.colors.background : SPLASH_BLUE);
+  }, [splashHidden, navigationTheme]);
 
   if (!hydrated || !dbReady) {
     return null;
@@ -86,6 +97,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <StatusBar style={splashHidden ? (preferDark ? 'light' : 'dark') : 'light'} />
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={navigationTheme}>
           <SafeAreaProvider>
@@ -117,7 +129,7 @@ export default function RootLayout() {
           <Image
             source={require('../../assets/images/splash-full.png')}
             style={StyleSheet.absoluteFill}
-            resizeMode="cover"
+            contentFit="cover"
           />
         </Animated.View>
       ) : null}
@@ -126,5 +138,5 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  splash: { ...StyleSheet.absoluteFillObject, backgroundColor: '#0156C9' },
+  splash: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: SPLASH_BLUE },
 });

@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import * as Updates from 'expo-updates';
 import i18n, { isRTL } from '@/i18n';
 import { openDatabase } from '@/database/db';
 import { initNotifications, syncNotifications } from '@/services/notification-service';
@@ -41,7 +42,15 @@ export default function RootLayout() {
   useEffect(() => {
     if (hydrated) {
       void i18n.changeLanguage(locale);
-      I18nManager.forceRTL(isRTL(locale));
+      // Match the native layout direction to the locale. When it differs (e.g. a
+      // fresh Farsi install on an LTR device) forcing RTL only takes full effect
+      // after a reload, so reload once — the direction then matches and it won't
+      // fire again.
+      if (isRTL(locale) !== I18nManager.isRTL) {
+        I18nManager.allowRTL(true);
+        I18nManager.forceRTL(isRTL(locale));
+        void Updates.reloadAsync();
+      }
     }
   }, [hydrated, locale]);
 

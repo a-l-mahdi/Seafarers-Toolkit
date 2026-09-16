@@ -19,7 +19,7 @@ interface SettingsState {
 const STORAGE_KEY = 'app.settings.v1';
 type Persisted = Pick<SettingsState, 'locale' | 'theme' | 'calendar'>;
 
-const DEFAULTS: Persisted = { locale: 'en', theme: 'system', calendar: 'gregorian' };
+const DEFAULTS: Persisted = { locale: 'fa', theme: 'system', calendar: 'jalali' };
 
 async function persist(patch: Partial<Persisted>): Promise<void> {
   try {

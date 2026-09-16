@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { I18nManager, View } from 'react-native';
+import { Animated, I18nManager, Image, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -35,7 +35,6 @@ export default function RootLayout() {
       } catch {
         // notifications sync is best-effort
       }
-      await SplashScreen.hideAsync();
     })();
   }, [hydrate]);
 
@@ -53,6 +52,26 @@ export default function RootLayout() {
       }
     }
   }, [hydrated, locale]);
+
+  // Full-screen branded splash: Android 12+ only allows a centred icon for the
+  // system splash, so once the app tree (with the splash image on top) is mounted
+  // we hide the native splash, hold the image briefly, then fade it out.
+  const [splashOpacity] = useState(() => new Animated.Value(1));
+  const [splashHidden, setSplashHidden] = useState(false);
+
+  useEffect(() => {
+    if (hydrated && dbReady) {
+      SplashScreen.hideAsync().catch(() => undefined);
+      const timer = setTimeout(() => {
+        Animated.timing(splashOpacity, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }).start(() => setSplashHidden(true));
+      }, 1100);
+      return () => clearTimeout(timer);
+    }
+  }, [hydrated, dbReady, splashOpacity]);
 
   const navigationTheme = useMemo(() => {
     const preferDark = theme === 'dark' || (theme === 'system' && scheme === 'dark');
@@ -90,6 +109,22 @@ export default function RootLayout() {
           </SafeAreaProvider>
         </ThemeProvider>
       </QueryClientProvider>
+      {!splashHidden ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.splash, { opacity: splashOpacity }]}
+        >
+          <Image
+            source={require('../../assets/images/splash-full.png')}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        </Animated.View>
+      ) : null}
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  splash: { ...StyleSheet.absoluteFillObject, backgroundColor: '#0156C9' },
+});

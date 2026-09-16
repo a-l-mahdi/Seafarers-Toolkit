@@ -21,6 +21,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Radius, Spacing } from '@/constants/theme';
 import * as Updates from 'expo-updates';
+import { useQueryClient } from '@tanstack/react-query';
 import { createBackup, pickBackupFile, restoreBackup, type ProgressFn } from '@/services/backup';
 import type { LeaveSettings } from '@/types/domain';
 
@@ -106,6 +107,7 @@ function BackupCard() {
   const [pickedFile, setPickedFile] = useState<{ uri: string; name: string } | null>(null);
   const [dialog, setDialog] = useState<'backup' | 'restore' | null>(null);
   const { locale, theme, calendar, setLocale, setTheme, setCalendar } = useSettingsStore();
+  const queryClient = useQueryClient();
 
   const runProgress: ProgressFn = (fraction) => setProgress(fraction);
 
@@ -146,6 +148,10 @@ function BackupCard() {
           password,
           runProgress
         );
+        // The restore rewrote the database directly, so every cached query is now
+        // stale — refetch them all so Home/Profile, Documents, etc. update without
+        // needing an app restart.
+        await queryClient.invalidateQueries();
         // Bring back language/theme/calendar exactly as they were backed up.
         if (appSettings) {
           const restoredLocale = (appSettings.locale === 'fa' ? 'fa' : 'en') as 'en' | 'fa';

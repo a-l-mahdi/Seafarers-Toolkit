@@ -359,21 +359,12 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
     );
   }
 
-  // Three key documents are always present and cannot be deleted; the seafarer
-  // fills their number / dates / place of issue here and the CV reads from them.
-  const protectedDocs: [string, string, string][] = [
-    ['doc_passport', 'doctype_passport', 'Passport'],
-    ['doc_seaman_book', 'doctype_seaman_s_book', "Seaman's Book"],
-    ['doc_coc', 'doctype_certificate_of_competency', 'Certificate of Competency'],
-  ];
-  const nowIso = new Date().toISOString();
-  for (const [id, typeId, name] of protectedDocs) {
-    await db.runAsync(
-      'INSERT OR IGNORE INTO documents (id, type_id, name, created_at) VALUES (?, ?, ?, ?)',
-      id,
-      typeId,
-      name,
-      nowIso
-    );
-  }
+  // Earlier versions seeded three fixed "protected" documents; they duplicated
+  // the user's own passport/CDC/CoC. Remove those seeded rows if still empty.
+  await db.runAsync(
+    `DELETE FROM documents WHERE id IN ('doc_passport','doc_seaman_book','doc_coc')
+       AND (number IS NULL OR number = '')
+       AND issue_date IS NULL AND expiry_date IS NULL
+       AND (place_of_issue IS NULL OR place_of_issue = '')`
+  );
 }

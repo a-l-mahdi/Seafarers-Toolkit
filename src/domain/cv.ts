@@ -38,6 +38,7 @@ export function emptyCvProfile(): CvProfile {
     dateOfAvailability: null,
     addressedTo: '',
     education: [],
+    excludedDocumentIds: [],
   };
 }
 

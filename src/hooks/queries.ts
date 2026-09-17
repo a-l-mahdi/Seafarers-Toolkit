@@ -209,6 +209,17 @@ export function useCreateDocumentType() {
   });
 }
 
+export function useDeleteDocumentType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => DocumentsRepo.deleteDocumentType(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.documentTypes });
+      void qc.invalidateQueries({ queryKey: queryKeys.documents });
+    },
+  });
+}
+
 export function useDocumentFiles(documentId: string | null) {
   return useQuery({
     queryKey: queryKeys.documentFiles(documentId ?? 'none'),

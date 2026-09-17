@@ -7,8 +7,8 @@ import { Button, Card } from '@/components/ui/primitives';
 import { FormScrollView, LabeledInput, Select, Checkbox } from '@/components/ui/form';
 import { DatePickerField } from '@/components/ui/date-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCvProfile, useSaveCvProfile } from '@/hooks/queries';
-import { exportCv } from '@/services/cv-export';
+import { useCvProfile, useDocuments, useSaveCvProfile } from '@/hooks/queries';
+import { exportCv, exportCvExcel } from '@/services/cv-export';
 import { useTheme } from '@/hooks/use-theme';
 import { newId } from '@/utils/id';
 import { Spacing } from '@/constants/theme';
@@ -40,8 +40,9 @@ function CvForm({ initial }: { initial: CvProfile }) {
   const insets = useSafeAreaInsets();
   const save = useSaveCvProfile();
 
+  const { data: documents } = useDocuments();
   const [cv, setCv] = useState<CvProfile>(() => initial);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<null | 'pdf' | 'excel'>(null);
   const [status, setStatus] = useState<string | null>(null);
 
   const set = <K extends keyof CvProfile>(key: K, value: CvProfile[K]) =>
@@ -65,16 +66,24 @@ function CvForm({ initial }: { initial: CvProfile }) {
     });
   };
 
-  const doExport = async () => {
-    setExporting(true);
+  const toggleDoc = (id: string, include: boolean) => {
+    const next = new Set(cv.excludedDocumentIds);
+    if (include) next.delete(id);
+    else next.add(id);
+    set('excludedDocumentIds', Array.from(next));
+  };
+
+  const doExport = async (format: 'pdf' | 'excel') => {
+    setExporting(format);
     setStatus(null);
     try {
       await save.mutateAsync(cv); // export reads from the DB, so persist edits first
-      await exportCv();
+      if (format === 'pdf') await exportCv();
+      else await exportCvExcel();
     } catch (err) {
       Alert.alert(t('cv.exportFailed'), err instanceof Error ? err.message : String(err));
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   };
 
@@ -151,6 +160,23 @@ function CvForm({ initial }: { initial: CvProfile }) {
       </Card>
 
       <Card>
+        <Text style={[styles.section, { color: colors.text }]}>{t('cv.sections.documents')}</Text>
+        <Text style={[styles.hint, { color: colors.textMuted }]}>{t('cv.documentsNote')}</Text>
+        {(documents ?? []).length === 0 ? (
+          <Text style={{ color: colors.textMuted, fontSize: 13 }}>{t('cv.noDocuments')}</Text>
+        ) : (
+          (documents ?? []).map((d) => (
+            <Checkbox
+              key={d.id}
+              label={d.name || d.typeName || '—'}
+              value={!cv.excludedDocumentIds.includes(d.id)}
+              onChange={(inc) => toggleDoc(d.id, inc)}
+            />
+          ))
+        )}
+      </Card>
+
+      <Card>
         <Text style={[styles.section, { color: colors.text }]}>{t('cv.sections.education')}</Text>
         {cv.education.map((e) => (
           <View key={e.id} style={[styles.eduItem, { borderColor: colors.border }]}>
@@ -202,9 +228,21 @@ function CvForm({ initial }: { initial: CvProfile }) {
 
       {status ? <Text style={[styles.status, { color: colors.success }]}>{status}</Text> : null}
 
+      <Button label={t('common.save')} variant="secondary" onPress={doSave} />
       <View style={styles.actions}>
-        <Button label={t('common.save')} variant="secondary" onPress={doSave} style={{ flex: 1 }} />
-        <Button label={exporting ? t('cv.exporting') : t('cv.exportPdf')} onPress={() => void doExport()} disabled={exporting} style={{ flex: 1 }} />
+        <Button
+          label={exporting === 'pdf' ? t('cv.exporting') : t('cv.exportPdf')}
+          onPress={() => void doExport('pdf')}
+          disabled={exporting !== null}
+          style={{ flex: 1 }}
+        />
+        <Button
+          label={exporting === 'excel' ? t('cv.exporting') : t('cv.exportExcel')}
+          variant="secondary"
+          onPress={() => void doExport('excel')}
+          disabled={exporting !== null}
+          style={{ flex: 1 }}
+        />
       </View>
     </FormScrollView>
   );

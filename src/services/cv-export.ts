@@ -271,9 +271,12 @@ export function buildCvHtml(data: {
 </body></html>`;
 }
 
-/** Loads all data, renders the CV to a PDF, and opens the share sheet. */
-export async function exportCv(): Promise<void> {
-  const [profile, cv, documents, contracts, vessels, ranks] = await Promise.all([
+type CvData = Parameters<typeof buildCvHtml>[0];
+
+/** Loads and prepares everything the CV needs (documents filtered by the user's
+ *  include/exclude choices). */
+async function loadCvData(): Promise<CvData> {
+  const [profile, cv, allDocuments, contracts, vessels, ranks] = await Promise.all([
     getProfile(),
     getCvProfile(),
     listDocuments(),
@@ -281,15 +284,19 @@ export async function exportCv(): Promise<void> {
     listVessels(),
     listRanks(),
   ]);
-
+  const excluded = new Set(cv.excludedDocumentIds ?? []);
+  const documents = allDocuments.filter((d) => !excluded.has(d.id));
   const vesselsByName = new Map<string, Vessel>();
   for (const v of vessels) vesselsByName.set(v.name, v);
   const currentRankName = ranks.find((r) => r.id === profile?.currentRankId)?.name ?? null;
   const photo = await photoDataUri(profile);
+  return { profile, cv, documents, contracts, vesselsByName, currentRankName, photo };
+}
 
-  const html = buildCvHtml({ profile, cv, documents, contracts, vesselsByName, currentRankName, photo });
-
-  const { uri } = await Print.printToFileAsync({ html });
+/** Renders the CV to a PDF and opens the share sheet. */
+export async function exportCv(): Promise<void> {
+  const data = await loadCvData();
+  const { uri } = await Print.printToFileAsync({ html: buildCvHtml(data) });
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(uri, {
       mimeType: 'application/pdf',
@@ -297,4 +304,114 @@ export async function exportCv(): Promise<void> {
       UTI: 'com.adobe.pdf',
     });
   }
+}
+
+/**
+ * Exports the CV as an Excel-openable .xls (an HTML workbook — Excel and WPS
+ * open it as a spreadsheet, no library needed).
+ */
+export async function exportCvExcel(): Promise<void> {
+  const data = await loadCvData();
+  const xls = buildCvXls(data);
+  const path = `${FileSystem.cacheDirectory ?? ''}seafarer-cv-${Date.now()}.xls`;
+  await FileSystem.writeAsStringAsync(path, xls, { encoding: FileSystem.EncodingType.UTF8 });
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(path, {
+      mimeType: 'application/vnd.ms-excel',
+      dialogTitle: 'Seafarer CV',
+      UTI: 'com.microsoft.excel.xls',
+    });
+  }
+}
+
+function xlsFields(pairs: [string, string][]): string {
+  return pairs
+    .filter(([, v]) => v && v.trim() !== '')
+    .map(([k, v]) => `<tr><td><b>${esc(k)}</b></td><td>${esc(v)}</td></tr>`)
+    .join('');
+}
+
+/** Builds the CV as an Excel-openable HTML workbook. */
+export function buildCvXls(data: CvData): string {
+  const { profile, cv, documents, contracts, vesselsByName, currentRankName } = data;
+  const fullName =
+    [profile?.firstName, cv.middleName, profile?.lastName].filter(Boolean).join(' ').trim() || 'Seafarer';
+
+  const personal = xlsFields([
+    ['Name', fullName],
+    ['Position applied for', cv.positionAppliedFor],
+    ['Present rank', currentRankName ?? ''],
+    ['Available from', fmt(cv.dateOfAvailability)],
+    ['Date of birth', fmt(profile?.dateOfBirth)],
+    ['Place of birth', cv.placeOfBirth],
+    ['Nationality', profile?.nationality ?? ''],
+    ['Marital status', cv.maritalStatus],
+    ['Height', cv.heightCm ? `${cv.heightCm} cm` : ''],
+    ['Weight', cv.weightKg ? `${cv.weightKg} kg` : ''],
+    ['Languages', cv.languages],
+    ['Email', profile?.email ?? ''],
+    ['Mobile', profile?.phone ?? ''],
+    ['Landline', profile?.landline ?? ''],
+    [
+      'Address',
+      [profile?.address, profile?.city, profile?.state, profile?.zipCode, profile?.country]
+        .filter(Boolean)
+        .join(', '),
+    ],
+    ['Passport no.', profile?.passportNumber ?? ''],
+    ["Seaman's book no.", profile?.seamanBookNumber ?? ''],
+    ['National seafarer ID', cv.nationalSeafarerId],
+    ['SID no.', cv.sidNumber],
+    ['Union membership', cv.unionMembership],
+    ['Next of kin', [cv.nokName, cv.nokRelationship, cv.nokPhone].filter(Boolean).join(' · ')],
+    ['Bank', [cv.bankName, cv.bankAccountNumber, cv.bankSwift].filter(Boolean).join(' · ')],
+  ]);
+
+  const certRows = documents
+    .map((d) =>
+      row([
+        esc(d.name || d.typeName || ''),
+        esc(d.number ?? ''),
+        esc(fmt(d.issueDate)),
+        d.expiryDate ? esc(fmt(d.expiryDate)) : 'Unlimited',
+        esc([d.placeOfIssue, d.issuingAuthority, d.issuingCountry].filter(Boolean).join(', ')),
+      ])
+    )
+    .join('');
+
+  const seaRows = contracts
+    .map((c) => {
+      const end = c.actualSignOff ?? c.expectedSignOff;
+      const days = c.durationDays ?? Math.max(diffInDays(c.joinDate, end), 0);
+      const v = c.vesselName ? vesselsByName.get(c.vesselName) : undefined;
+      return row([
+        esc(c.rankName ?? ''),
+        esc(c.vesselName ?? ''),
+        esc(v?.type ?? ''),
+        esc(fmt(c.joinDate)),
+        esc(fmt(end)),
+        esc(durationLabel(days)),
+        esc(v?.managementCompany ?? v?.owner ?? ''),
+      ]);
+    })
+    .join('');
+
+  const eduRows = cv.education
+    .map((e) =>
+      row([esc(e.institution), esc(fmt(e.from)), esc(fmt(e.to)), esc(e.qualification), esc(e.location ?? '')])
+    )
+    .join('');
+
+  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+<head><meta charset="utf-8" /><style>td{border:1px solid #ccc;padding:4px;} th{border:1px solid #999;background:#eef;padding:4px;}</style></head>
+<body>
+<h2>${esc(fullName)} — Seafarer CV</h2>
+<h3>Personal</h3><table>${personal}</table>
+<h3>Certificates &amp; documents</h3>
+<table><tr><th>Certificate</th><th>Number</th><th>Issued</th><th>Expiry</th><th>Place of issue</th></tr>${certRows}</table>
+<h3>Sea service</h3>
+<table><tr><th>Rank</th><th>Vessel</th><th>Type</th><th>Sign on</th><th>Sign off</th><th>Duration</th><th>Company</th></tr>${seaRows}</table>
+<h3>Education</h3>
+<table><tr><th>Institution</th><th>From</th><th>To</th><th>Qualification</th><th>Location</th></tr>${eduRows}</table>
+</body></html>`;
 }

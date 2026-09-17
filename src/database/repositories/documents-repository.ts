@@ -115,27 +115,16 @@ export async function saveDocument(
   return mapDocument(row!);
 }
 
-/** The three key documents that are always present and cannot be deleted. */
-export const PROTECTED_DOCUMENT_IDS = ['doc_passport', 'doc_seaman_book', 'doc_coc'] as const;
-export const PROTECTED_DOC_TYPE_IDS = [
-  'doctype_passport',
-  'doctype_seaman_s_book',
-  'doctype_certificate_of_competency',
-] as const;
-
-export function isProtectedDocument(id: string | null | undefined): boolean {
-  return !!id && (PROTECTED_DOCUMENT_IDS as readonly string[]).includes(id);
-}
-
-/** True if a document of this type should show the Place of Issue field. */
-export function typeHasPlaceOfIssue(typeId: string | null | undefined): boolean {
-  return !!typeId && (PROTECTED_DOC_TYPE_IDS as readonly string[]).includes(typeId);
-}
-
 export async function deleteDocument(id: string): Promise<void> {
-  if (isProtectedDocument(id)) return; // key documents can't be deleted
   const db = await openDatabase();
   await db.runAsync('DELETE FROM documents WHERE id = ?', id);
+}
+
+/** Deletes a document type. Existing documents keep working — their type_id is
+ *  set to NULL by the ON DELETE SET NULL rule. */
+export async function deleteDocumentType(id: string): Promise<void> {
+  const db = await openDatabase();
+  await db.runAsync('DELETE FROM document_types WHERE id = ?', id);
 }
 
 function mapFile(row: Record<string, unknown>): DocumentFile {

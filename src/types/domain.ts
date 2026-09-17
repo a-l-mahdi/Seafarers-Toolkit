@@ -229,6 +229,8 @@ export interface CvProfile {
   addressedTo: string; // agency / company name
   // Education (incl. pre-sea training)
   education: CvEducation[];
+  // Documents the seafarer chose to EXCLUDE from the CV (empty = include all).
+  excludedDocumentIds: string[];
 }
 
 export interface LeaveSettings {

@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, ProgressBar } from '@/components/ui/primitives';
 import { LabeledInput, Select } from '@/components/ui/form';
@@ -29,6 +29,7 @@ export default function SettingsScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { locale, theme, calendar, setLocale, setTheme, setCalendar } = useSettingsStore();
 
   const applyLocale = async (next: 'en' | 'fa') => {
@@ -89,6 +90,18 @@ export default function SettingsScreen() {
             { id: 'dark', label: t('settings.dark') },
           ]}
           onSelect={(v) => setTheme(v as 'system' | 'light' | 'dark')}
+        />
+      </Card>
+
+      <Card>
+        <Text style={[styles.title, { color: colors.text }]}>{t('documents.typesTitle')}</Text>
+        <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: Spacing.sm }}>
+          {t('documents.manageTypesHint')}
+        </Text>
+        <Button
+          label={t('documents.manageTypes')}
+          variant="secondary"
+          onPress={() => router.push('/document-types')}
         />
       </Card>
 

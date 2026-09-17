@@ -1,6 +1,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as XLSX from 'xlsx';
 import { getProfile } from '@/database/repositories/profile-repository';
 import { getCvProfile } from '@/database/repositories/cv-repository';
 import { listDocuments } from '@/database/repositories/documents-repository';
@@ -310,21 +311,168 @@ export async function exportCv(): Promise<void> {
   }
 }
 
-/**
- * Exports the CV as an Excel-openable .xls. It writes the SAME HTML as the PDF
- * (photo, every section, tables and spacing) so the spreadsheet matches the PDF;
- * Excel/WPS open an HTML workbook natively, so no library is needed.
- */
+type Cell = string | number;
+
+/** Builds a real .xlsx workbook (SheetJS) with every CV section, returned as
+ *  base64. A genuine spreadsheet opens completely in Excel/WPS — unlike the
+ *  old HTML-as-.xls trick which programs imported only partially. */
+function buildCvXlsxBase64(data: CvData): string {
+  const { profile, cv, documents, contracts, vesselsByName, currentRankName } = data;
+  const fullName =
+    [profile?.firstName, cv.middleName, profile?.lastName].filter(Boolean).join(' ').trim() || 'Seafarer';
+
+  const rows: Cell[][] = [];
+  const merges: XLSX.Range[] = [];
+  const COLS = 7;
+  const banner = (title: string) => {
+    merges.push({ s: { r: rows.length, c: 0 }, e: { r: rows.length, c: COLS - 1 } });
+    rows.push([title]);
+  };
+  const pair = (label: string, value: string) => {
+    if (value && value.trim() !== '') rows.push([label, value]);
+  };
+  const blank = () => rows.push([]);
+
+  rows.push([fullName]);
+  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } });
+  rows.push([cv.positionAppliedFor || currentRankName || 'Seafarer']);
+  merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } });
+  if (cv.addressedTo) rows.push([`To: ${cv.addressedTo}`]);
+  blank();
+
+  const genderMap: Record<string, string> = { male: 'Male', female: 'Female' };
+  const maritalMap: Record<string, string> = { single: 'Single', married: 'Married', other: 'Other' };
+
+  banner('PERSONAL DETAILS');
+  pair('Position applied for', cv.positionAppliedFor);
+  pair('Present rank', currentRankName ?? '');
+  pair('Available from', fmt(cv.dateOfAvailability));
+  pair('Date of birth', fmt(profile?.dateOfBirth));
+  pair('Place of birth', cv.placeOfBirth);
+  pair('Nationality', profile?.nationality ?? '');
+  pair('Gender', genderMap[cv.gender] ?? '');
+  pair('Marital status', maritalMap[cv.maritalStatus] ?? '');
+  pair('Children', cv.children);
+  pair('Height', cv.heightCm ? `${cv.heightCm} cm` : '');
+  pair('Weight', cv.weightKg ? `${cv.weightKg} kg` : '');
+  pair('Blood group', cv.bloodGroup);
+  pair('Languages', cv.languages);
+  pair('Nearest airport', cv.nearestAirport);
+  blank();
+
+  banner('CONTACT');
+  pair('Email', profile?.email ?? '');
+  pair('Mobile', profile?.phone ?? '');
+  pair('Landline', profile?.landline ?? '');
+  pair(
+    'Address',
+    [profile?.address, profile?.city, profile?.state, profile?.zipCode, profile?.country]
+      .filter(Boolean)
+      .join(', ')
+  );
+  blank();
+
+  banner('IDENTIFICATION');
+  pair('Passport no.', profile?.passportNumber ?? '');
+  pair("Seaman's book (CDC) no.", profile?.seamanBookNumber ?? '');
+  pair('National seafarer ID', cv.nationalSeafarerId);
+  pair('SID no.', cv.sidNumber);
+  pair('Union membership', cv.unionMembership);
+  blank();
+
+  banner('CERTIFICATES & DOCUMENTS');
+  rows.push(['Certificate', 'Number', 'Issued', 'Expiry', 'Place of issue']);
+  for (const d of documents) {
+    rows.push([
+      d.name || d.typeName || '',
+      d.number ?? '',
+      fmt(d.issueDate),
+      d.expiryDate ? fmt(d.expiryDate) : 'Unlimited',
+      [d.placeOfIssue, d.issuingAuthority, d.issuingCountry].filter(Boolean).join(', '),
+    ]);
+  }
+  blank();
+
+  banner('SEA SERVICE');
+  rows.push(['Rank', 'Vessel', 'Type', 'Sign on', 'Sign off', 'Duration', 'Company']);
+  let totalSeaDays = 0;
+  for (const c of contracts) {
+    const end = c.actualSignOff ?? c.expectedSignOff;
+    const days = c.durationDays ?? Math.max(diffInDays(c.joinDate, end), 0);
+    totalSeaDays += days;
+    const v = c.vesselName ? vesselsByName.get(c.vesselName) : undefined;
+    rows.push([
+      c.rankName ?? '',
+      c.vesselName ?? '',
+      v?.type ?? '',
+      fmt(c.joinDate),
+      fmt(end),
+      durationLabel(days),
+      v?.managementCompany ?? v?.owner ?? '',
+    ]);
+  }
+  rows.push(['Total sea service', durationLabel(totalSeaDays)]);
+  blank();
+
+  if (cv.education.length) {
+    banner('EDUCATION & TRAINING');
+    rows.push(['Institution', 'From', 'To', 'Qualification', 'Location']);
+    for (const e of cv.education) {
+      rows.push([e.institution, fmt(e.from), fmt(e.to), e.qualification, e.location ?? '']);
+    }
+    blank();
+  }
+
+  banner('NEXT OF KIN');
+  pair('Name', cv.nokName);
+  pair('Relationship', cv.nokRelationship);
+  pair('Phone', cv.nokPhone);
+  pair('Address', cv.nokAddress);
+  blank();
+
+  banner('BANK DETAILS');
+  pair('Bank name', cv.bankName);
+  pair('Account holder', cv.bankAccountHolder);
+  pair('Account no.', cv.bankAccountNumber);
+  pair('Branch code', cv.bankBranchCode);
+  pair('SWIFT', cv.bankSwift);
+  pair('IBAN', cv.bankIban);
+  pair('Bank address', cv.bankAddress);
+  blank();
+
+  banner('HEALTH DECLARATION');
+  const health: [string, boolean][] = [
+    ['Involved in any marine accident / investigation', cv.healthMarineAccident],
+    ['Suffered accident causing temporary/partial disability', cv.healthDisability],
+    ['Currently under medical treatment / medication', cv.healthMedication],
+    ['Suffer from any disease affecting fitness for sea service', cv.healthDisease],
+    ['Underwent psychiatric treatment', cv.healthPsychiatric],
+    ['Addicted to alcohol or drugs', cv.healthAddiction],
+  ];
+  for (const [q, yes] of health) rows.push([q, yes ? 'Yes' : 'No']);
+  if (cv.healthDetails) rows.push(['Details', cv.healthDetails]);
+  blank();
+  rows.push(['Date', '', '', '', '', '', 'Signature']);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 30 }, { wch: 26 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 22 }];
+  ws['!merges'] = merges;
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'CV');
+  return XLSX.write(wb, { type: 'base64', bookType: 'xlsx' }) as string;
+}
+
+/** Exports the CV as a real .xlsx spreadsheet (all sections) and shares it. */
 export async function exportCvExcel(): Promise<void> {
   const data = await loadCvData();
-  const html = buildCvHtml(data);
-  const path = `${FileSystem.cacheDirectory ?? ''}seafarer-cv-${Date.now()}.xls`;
-  await FileSystem.writeAsStringAsync(path, html, { encoding: FileSystem.EncodingType.UTF8 });
+  const b64 = buildCvXlsxBase64(data);
+  const path = `${FileSystem.cacheDirectory ?? ''}seafarer-cv-${Date.now()}.xlsx`;
+  await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(path, {
-      mimeType: 'application/vnd.ms-excel',
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       dialogTitle: 'Seafarer CV',
-      UTI: 'com.microsoft.excel.xls',
+      UTI: 'org.openxmlformats.spreadsheetml.sheet',
     });
   }
 }

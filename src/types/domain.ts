@@ -55,6 +55,12 @@ export interface Profile {
   phone: string | null;
   seamanBookNumber: string | null;
   passportNumber: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  zipCode: string | null;
+  landline: string | null;
   department: Department | null;
   currentRankId: string | null;
   nextRankId: string | null;
@@ -148,6 +154,8 @@ export interface Document {
   expiryDate: string | null;
   issuingAuthority: string | null;
   issuingCountry: string | null;
+  /** Place of issue — shown for the key documents (passport, seaman's book, CoC). */
+  placeOfIssue: string | null;
   /** Days before expiry to warn the user to renew (e.g. 210 = warn 1 month before the 6-month rule). */
   warningThresholdDays: number | null;
   /** Minimum remaining validity (days) required to join a vessel (e.g. 180 = 6 months). */
@@ -188,27 +196,8 @@ export interface CvProfile {
   bloodGroup: string;
   nationalSeafarerId: string; // e.g. INDOS / national seafarer ID
   sidNumber: string; // Seafarer Identity Document
-  // Passport (number lives on the profile; place + dates here)
-  passportPlaceOfIssue: string;
-  passportIssueDate: string | null;
-  passportExpiryDate: string | null;
-  // Seaman book / CDC (number lives on the profile)
-  cdcPlaceOfIssue: string;
-  cdcIssueDate: string | null;
-  cdcExpiryDate: string | null;
-  // Certificate of Competency
-  cocGrade: string;
-  cocNumber: string;
-  cocIssueDate: string | null;
-  cocExpiryDate: string | null;
-  cocPlaceOfIssue: string;
-  // Address & contact
-  addressLine: string;
-  city: string;
-  state: string;
-  country: string;
-  zip: string;
-  landline: string;
+  // Passport / seaman's book / CoC (number, dates, place of issue) live on the
+  // Documents (passport, seaman's book, CoC) — not duplicated here.
   nearestAirport: string;
   languages: string;
   // Next of kin

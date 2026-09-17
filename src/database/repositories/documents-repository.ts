@@ -20,6 +20,7 @@ function mapDocument(row: Record<string, unknown>): Document {
     expiryDate: (row.expiry_date as string) ?? null,
     issuingAuthority: (row.issuing_authority as string) ?? null,
     issuingCountry: (row.issuing_country as string) ?? null,
+    placeOfIssue: (row.place_of_issue as string) ?? null,
     warningThresholdDays: (row.warning_threshold_days as number) ?? null,
     validThresholdDays: (row.valid_threshold_days as number) ?? null,
     notes: (row.notes as string) ?? null,
@@ -86,12 +87,13 @@ export async function saveDocument(
     ? await db.getFirstAsync<{ created_at: string }>('SELECT created_at FROM documents WHERE id = ?', id)
     : null;
   await db.runAsync(
-    `INSERT INTO documents (id, type_id, name, number, issue_date, expiry_date, issuing_authority, issuing_country, warning_threshold_days, valid_threshold_days, notes, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO documents (id, type_id, name, number, issue_date, expiry_date, issuing_authority, issuing_country, place_of_issue, warning_threshold_days, valid_threshold_days, notes, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        type_id = excluded.type_id, name = excluded.name, number = excluded.number,
        issue_date = excluded.issue_date, expiry_date = excluded.expiry_date,
        issuing_authority = excluded.issuing_authority, issuing_country = excluded.issuing_country,
+       place_of_issue = excluded.place_of_issue,
        warning_threshold_days = excluded.warning_threshold_days,
        valid_threshold_days = excluded.valid_threshold_days,
        notes = excluded.notes`,
@@ -103,6 +105,7 @@ export async function saveDocument(
     input.expiryDate,
     input.issuingAuthority,
     input.issuingCountry,
+    input.placeOfIssue,
     input.warningThresholdDays,
     input.validThresholdDays,
     input.notes,
@@ -112,7 +115,25 @@ export async function saveDocument(
   return mapDocument(row!);
 }
 
+/** The three key documents that are always present and cannot be deleted. */
+export const PROTECTED_DOCUMENT_IDS = ['doc_passport', 'doc_seaman_book', 'doc_coc'] as const;
+export const PROTECTED_DOC_TYPE_IDS = [
+  'doctype_passport',
+  'doctype_seaman_s_book',
+  'doctype_certificate_of_competency',
+] as const;
+
+export function isProtectedDocument(id: string | null | undefined): boolean {
+  return !!id && (PROTECTED_DOCUMENT_IDS as readonly string[]).includes(id);
+}
+
+/** True if a document of this type should show the Place of Issue field. */
+export function typeHasPlaceOfIssue(typeId: string | null | undefined): boolean {
+  return !!typeId && (PROTECTED_DOC_TYPE_IDS as readonly string[]).includes(typeId);
+}
+
 export async function deleteDocument(id: string): Promise<void> {
+  if (isProtectedDocument(id)) return; // key documents can't be deleted
   const db = await openDatabase();
   await db.runAsync('DELETE FROM documents WHERE id = ?', id);
 }

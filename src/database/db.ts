@@ -21,6 +21,12 @@ CREATE TABLE IF NOT EXISTS profile (
   phone TEXT,
   seaman_book_number TEXT,
   passport_number TEXT,
+  address TEXT,
+  city TEXT,
+  state TEXT,
+  country TEXT,
+  zip_code TEXT,
+  landline TEXT,
   department TEXT,
   current_rank_id TEXT,
   next_rank_id TEXT,
@@ -85,6 +91,7 @@ CREATE TABLE IF NOT EXISTS documents (
   expiry_date TEXT,
   issuing_authority TEXT,
   issuing_country TEXT,
+  place_of_issue TEXT,
   warning_threshold_days INTEGER,
   valid_threshold_days INTEGER,
   notes TEXT,
@@ -185,6 +192,19 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
     // Stores the exact duration input (mode/days/months/custom date) so editing
     // a contract keeps its duration instead of resetting it to form defaults.
     await db.execAsync('ALTER TABLE contracts ADD COLUMN duration_json TEXT');
+  }
+  // Contact fields on the profile (address block + landline) — used by the CV.
+  const profileCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(profile)');
+  const profileNames = new Set(profileCols.map((c) => c.name));
+  for (const col of ['address', 'city', 'state', 'country', 'zip_code', 'landline']) {
+    if (!profileNames.has(col)) {
+      await db.execAsync(`ALTER TABLE profile ADD COLUMN ${col} TEXT`);
+    }
+  }
+  // Place of issue on documents (shown for passport / seaman's book / CoC).
+  const docCols2 = await db.getAllAsync<{ name: string }>('PRAGMA table_info(documents)');
+  if (!docCols2.some((c) => c.name === 'place_of_issue')) {
+    await db.execAsync('ALTER TABLE documents ADD COLUMN place_of_issue TEXT');
   }
   const rankCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(ranks)');
   const rankNames = new Set(rankCols.map((c) => c.name));
@@ -336,6 +356,24 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
       'INSERT OR IGNORE INTO document_types (id, name, is_default) VALUES (?, ?, 1)',
       `doctype_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
       name
+    );
+  }
+
+  // Three key documents are always present and cannot be deleted; the seafarer
+  // fills their number / dates / place of issue here and the CV reads from them.
+  const protectedDocs: [string, string, string][] = [
+    ['doc_passport', 'doctype_passport', 'Passport'],
+    ['doc_seaman_book', 'doctype_seaman_s_book', "Seaman's Book"],
+    ['doc_coc', 'doctype_certificate_of_competency', 'Certificate of Competency'],
+  ];
+  const nowIso = new Date().toISOString();
+  for (const [id, typeId, name] of protectedDocs) {
+    await db.runAsync(
+      'INSERT OR IGNORE INTO documents (id, type_id, name, created_at) VALUES (?, ?, ?, ?)',
+      id,
+      typeId,
+      name,
+      nowIso
     );
   }
 }

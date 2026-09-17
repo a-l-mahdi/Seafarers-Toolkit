@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Card } from '@/components/ui/primitives';
 import { FormScrollView, LabeledInput, Select, Checkbox } from '@/components/ui/form';
 import { DatePickerField } from '@/components/ui/date-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCvProfile, useSaveCvProfile } from '@/hooks/queries';
 import { exportCv } from '@/services/cv-export';
 import { useTheme } from '@/hooks/use-theme';
@@ -36,6 +37,7 @@ export default function CvScreen() {
 function CvForm({ initial }: { initial: CvProfile }) {
   const { t } = useTranslation();
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const save = useSaveCvProfile();
 
   const [cv, setCv] = useState<CvProfile>(() => initial);
@@ -97,7 +99,7 @@ function CvForm({ initial }: { initial: CvProfile }) {
     <FormScrollView
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container, { paddingBottom: Spacing.xxl + insets.bottom + 24 }]}
       style={{ backgroundColor: colors.background }}
     >
       <Text style={[styles.note, { color: colors.textMuted }]}>{t('cv.pulledNote')}</Text>
@@ -141,30 +143,10 @@ function CvForm({ initial }: { initial: CvProfile }) {
       </Card>
 
       <Card>
-        <Text style={[styles.section, { color: colors.text }]}>{t('cv.sections.contact')}</Text>
-        {textField('addressLine', 'cv.addressLine')}
-        {textField('city', 'cv.city')}
-        {textField('state', 'cv.state')}
-        {textField('country', 'cv.country')}
-        {textField('zip', 'cv.zip')}
-        {textField('landline', 'cv.landline', 'phone-pad')}
-      </Card>
-
-      <Card>
         <Text style={[styles.section, { color: colors.text }]}>{t('cv.sections.ids')}</Text>
-        {textField('passportPlaceOfIssue', 'cv.passportPlace')}
-        {dateField('passportIssueDate', 'cv.passportIssue')}
-        {dateField('passportExpiryDate', 'cv.passportExpiry')}
-        {textField('cdcPlaceOfIssue', 'cv.cdcPlace')}
-        {dateField('cdcIssueDate', 'cv.cdcIssue')}
-        {dateField('cdcExpiryDate', 'cv.cdcExpiry')}
+        <Text style={[styles.hint, { color: colors.textMuted }]}>{t('cv.idsNote')}</Text>
         {textField('nationalSeafarerId', 'cv.nationalId')}
         {textField('sidNumber', 'cv.sid')}
-        {textField('cocGrade', 'cv.cocGrade')}
-        {textField('cocNumber', 'cv.cocNumber')}
-        {dateField('cocIssueDate', 'cv.cocIssue')}
-        {dateField('cocExpiryDate', 'cv.cocExpiry')}
-        {textField('cocPlaceOfIssue', 'cv.cocPlace')}
         {textField('unionMembership', 'cv.union')}
       </Card>
 
@@ -231,6 +213,7 @@ function CvForm({ initial }: { initial: CvProfile }) {
 const styles = StyleSheet.create({
   container: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xxl },
   note: { fontSize: 12, lineHeight: 18 },
+  hint: { fontSize: 12, marginBottom: Spacing.sm },
   section: { fontSize: 15, fontWeight: '700', marginBottom: Spacing.sm },
   eduItem: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
   eduHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs },

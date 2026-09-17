@@ -23,6 +23,10 @@ import {
   pickDocumentFile,
   removeImportedFile,
 } from '@/services/file-storage';
+import {
+  isProtectedDocument,
+  typeHasPlaceOfIssue,
+} from '@/database/repositories/documents-repository';
 import { capturePhoto, pickPhoto } from '@/services/image-capture';
 import { parseDocumentText } from '@/services/ocr';
 import { useFormattedDate } from '@/hooks/use-date-format';
@@ -83,6 +87,8 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   );
   const [authority, setAuthority] = useState(initial?.issuingAuthority ?? '');
   const [country, setCountry] = useState(initial?.issuingCountry ?? '');
+  const [placeOfIssue, setPlaceOfIssue] = useState(initial?.placeOfIssue ?? '');
+  const protectedDoc = isProtectedDocument(initial?.id);
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [newTypeName, setNewTypeName] = useState('');
   const [pending, setPending] = useState<DisplayFile[]>([]);
@@ -187,6 +193,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
         expiryDate: unlimited ? null : expiryDate || null,
         issuingAuthority: authority.trim() || null,
         issuingCountry: country.trim() || null,
+        placeOfIssue: placeOfIssue.trim() || null,
         warningThresholdDays: parseInt(warningThreshold, 10) || null,
         validThresholdDays: parseInt(validThreshold, 10) || null,
         notes: notes.trim() || null,
@@ -227,7 +234,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
       <HeaderBar
         title={initial ? t('common.edit') : t('documents.add')}
         onBack={() => router.back()}
-        action={initial ? { label: t('common.delete'), onPress: confirmDelete } : undefined}
+        action={initial && !protectedDoc ? { label: t('common.delete'), onPress: confirmDelete } : undefined}
       />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <FormScrollView
@@ -318,6 +325,9 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
         </Text>
         <LabeledInput label={t('documents.authority')} value={authority} onChangeText={setAuthority} />
         <LabeledInput label={t('documents.country')} value={country} onChangeText={setCountry} />
+        {typeHasPlaceOfIssue(typeId) ? (
+          <LabeledInput label={t('documents.placeOfIssue')} value={placeOfIssue} onChangeText={setPlaceOfIssue} />
+        ) : null}
         <LabeledInput label={t('documents.notes')} value={notes} onChangeText={setNotes} multiline />
         <DocumentFilesSection
           documentId={documentId}
@@ -332,7 +342,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
             style={styles.flexBtn}
             disabled={saving}
           />
-          {initial ? (
+          {initial && !protectedDoc ? (
             <Button label={t('common.delete')} onPress={confirmDelete} variant="danger" style={styles.flexBtn} />
           ) : null}
         </View>

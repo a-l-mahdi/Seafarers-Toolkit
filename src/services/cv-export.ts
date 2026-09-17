@@ -76,7 +76,7 @@ function section(title: string, inner: string): string {
 export function buildCvHtml(data: {
   profile: Profile | null;
   cv: CvProfile;
-  documents: { name: string; typeName: string | null; number: string | null; issueDate: string | null; expiryDate: string | null; issuingAuthority: string | null; issuingCountry: string | null }[];
+  documents: { name: string; typeName: string | null; number: string | null; issueDate: string | null; expiryDate: string | null; issuingAuthority: string | null; issuingCountry: string | null; placeOfIssue: string | null }[];
   contracts: { rankName: string | null; vesselName: string | null; joinDate: string; expectedSignOff: string; actualSignOff: string | null; durationDays: number | null }[];
   vesselsByName: Map<string, Vessel>;
   currentRankName: string | null;
@@ -108,26 +108,20 @@ export function buildCvHtml(data: {
   const contact = fieldRows([
     ['Email', profile?.email ?? ''],
     ['Mobile', profile?.phone ?? ''],
-    ['Landline', cv.landline],
-    ['Address', [cv.addressLine, cv.city, cv.state, cv.zip, cv.country].filter(Boolean).join(', ')],
+    ['Landline', profile?.landline ?? ''],
+    [
+      'Address',
+      [profile?.address, profile?.city, profile?.state, profile?.zipCode, profile?.country]
+        .filter(Boolean)
+        .join(', '),
+    ],
   ]);
 
   const ids = fieldRows([
     ['Passport no.', profile?.passportNumber ?? ''],
-    ['Passport place of issue', cv.passportPlaceOfIssue],
-    ['Passport issued', fmt(cv.passportIssueDate)],
-    ['Passport expiry', fmt(cv.passportExpiryDate)],
     ["Seaman's book (CDC) no.", profile?.seamanBookNumber ?? ''],
-    ['CDC place of issue', cv.cdcPlaceOfIssue],
-    ['CDC issued', fmt(cv.cdcIssueDate)],
-    ['CDC expiry', fmt(cv.cdcExpiryDate)],
     ['National seafarer ID', cv.nationalSeafarerId],
     ['SID no.', cv.sidNumber],
-    ['CoC grade', cv.cocGrade],
-    ['CoC no.', cv.cocNumber],
-    ['CoC issued', fmt(cv.cocIssueDate)],
-    ['CoC expiry', fmt(cv.cocExpiryDate)],
-    ['CoC place of issue', cv.cocPlaceOfIssue],
     ['Union membership', cv.unionMembership],
   ]);
 
@@ -137,13 +131,13 @@ export function buildCvHtml(data: {
         esc(d.name || d.typeName || ''),
         esc(d.number ?? ''),
         esc(fmt(d.issueDate)),
-        esc(fmt(d.expiryDate)),
-        esc([d.issuingAuthority, d.issuingCountry].filter(Boolean).join(', ')),
+        d.expiryDate ? esc(fmt(d.expiryDate)) : 'Unlimited',
+        esc([d.placeOfIssue, d.issuingAuthority, d.issuingCountry].filter(Boolean).join(', ')),
       ])
     )
     .join('');
   const certificates = certRows
-    ? `<table class="grid"><thead><tr><th>Certificate</th><th>Number</th><th>Issued</th><th>Expiry</th><th>Issued by</th></tr></thead><tbody>${certRows}</tbody></table>`
+    ? `<table class="grid"><thead><tr><th>Certificate</th><th>Number</th><th>Issued</th><th>Expiry</th><th>Place of issue</th></tr></thead><tbody>${certRows}</tbody></table>`
     : '';
 
   let totalSeaDays = 0;

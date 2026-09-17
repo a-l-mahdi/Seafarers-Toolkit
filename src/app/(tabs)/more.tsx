@@ -6,6 +6,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
 
 const ITEMS: { href: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { href: '/cv', icon: 'document-text' },
   { href: '/sea-time', icon: 'water' },
   { href: '/vessels', icon: 'boat' },
   { href: '/calendar', icon: 'calendar' },
@@ -59,6 +60,8 @@ export default function MoreScreen() {
 
 function toLabelKey(href: string): string {
   switch (href) {
+    case '/cv':
+      return 'more.cv';
     case '/sea-time':
       return 'more.seaTime';
     case '/vessels':

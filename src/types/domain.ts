@@ -162,6 +162,86 @@ export interface DocumentWithMeta extends Document {
   daysUntilExpiry: number | null;
 }
 
+export interface CvEducation {
+  id: string;
+  institution: string;
+  from: string | null;
+  to: string | null;
+  qualification: string;
+  location: string | null;
+}
+
+/**
+ * CV / résumé data that isn't already captured elsewhere in the app. The rest
+ * of the CV (name, contact, certificates, sea service) is pulled at export time
+ * from the profile, documents and contracts, so nothing is entered twice.
+ */
+export interface CvProfile {
+  // Personal / physical
+  middleName: string;
+  gender: string; // 'male' | 'female' | ''
+  placeOfBirth: string;
+  maritalStatus: string; // 'single' | 'married' | 'other' | ''
+  children: string;
+  heightCm: string;
+  weightKg: string;
+  bloodGroup: string;
+  nationalSeafarerId: string; // e.g. INDOS / national seafarer ID
+  sidNumber: string; // Seafarer Identity Document
+  // Passport (number lives on the profile; place + dates here)
+  passportPlaceOfIssue: string;
+  passportIssueDate: string | null;
+  passportExpiryDate: string | null;
+  // Seaman book / CDC (number lives on the profile)
+  cdcPlaceOfIssue: string;
+  cdcIssueDate: string | null;
+  cdcExpiryDate: string | null;
+  // Certificate of Competency
+  cocGrade: string;
+  cocNumber: string;
+  cocIssueDate: string | null;
+  cocExpiryDate: string | null;
+  cocPlaceOfIssue: string;
+  // Address & contact
+  addressLine: string;
+  city: string;
+  state: string;
+  country: string;
+  zip: string;
+  landline: string;
+  nearestAirport: string;
+  languages: string;
+  // Next of kin
+  nokName: string;
+  nokRelationship: string;
+  nokPhone: string;
+  nokAddress: string;
+  // Union membership
+  unionMembership: string;
+  // Bank
+  bankName: string;
+  bankAccountHolder: string;
+  bankAccountNumber: string;
+  bankAddress: string;
+  bankBranchCode: string;
+  bankSwift: string;
+  bankIban: string;
+  // Health declarations
+  healthMarineAccident: boolean;
+  healthDisability: boolean;
+  healthMedication: boolean;
+  healthDisease: boolean;
+  healthPsychiatric: boolean;
+  healthAddiction: boolean;
+  healthDetails: string;
+  // Application header (tweaked per application before export)
+  positionAppliedFor: string;
+  dateOfAvailability: string | null;
+  addressedTo: string; // agency / company name
+  // Education (incl. pre-sea training)
+  education: CvEducation[];
+}
+
 export interface LeaveSettings {
   mode: LeaveMode;
   onboardDays: number;

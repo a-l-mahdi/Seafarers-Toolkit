@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AppNotification,
   Contract,
+  CvProfile,
   Document,
   DocumentFile,
   LeaveSettings,
@@ -12,6 +13,7 @@ import type {
 } from '@/types/domain';
 import * as RanksRepo from '@/database/repositories/ranks-repository';
 import * as ProfileRepo from '@/database/repositories/profile-repository';
+import * as CvRepo from '@/database/repositories/cv-repository';
 import * as VesselsRepo from '@/database/repositories/vessels-repository';
 import * as SeaTimeRepo from '@/database/repositories/sea-time-repository';
 import * as DocumentsRepo from '@/database/repositories/documents-repository';
@@ -21,6 +23,7 @@ import type { ContractListRow, DocumentListRow } from '@/database/repositories';
 
 export const queryKeys = {
   profile: ['profile'] as const,
+  cvProfile: ['cv-profile'] as const,
   ranks: ['ranks'] as const,
   vessels: ['vessels'] as const,
   contracts: ['contracts'] as const,
@@ -43,6 +46,18 @@ export function useSaveProfile() {
   return useMutation({
     mutationFn: (input: Omit<Profile, 'id' | 'updatedAt'>) => ProfileRepo.saveProfile(input),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.profile }),
+  });
+}
+
+export function useCvProfile() {
+  return useQuery({ queryKey: queryKeys.cvProfile, queryFn: CvRepo.getCvProfile });
+}
+
+export function useSaveCvProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CvProfile) => CvRepo.saveCvProfile(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.cvProfile }),
   });
 }
 

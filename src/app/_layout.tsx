@@ -3,8 +3,6 @@ import { DarkTheme, DefaultTheme, ThemeProvider, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { Animated, I18nManager, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
-import { StatusBar } from 'expo-status-bar';
-import * as SystemUI from 'expo-system-ui';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -78,18 +76,12 @@ export default function RootLayout() {
     }
   }, [hydrated, dbReady, splashOpacity]);
 
-  const preferDark = theme === 'dark' || (theme === 'system' && scheme === 'dark');
   const navigationTheme = useMemo(() => {
+    const preferDark = theme === 'dark' || (theme === 'system' && scheme === 'dark');
     const base = preferDark ? DarkTheme : DefaultTheme;
     const colors = preferDark ? Colors.dark : Colors.light;
     return { ...base, colors: { ...base.colors, background: colors.background, card: colors.surface, primary: colors.primary, text: colors.text } };
-  }, [preferDark]);
-
-  // The bars are edge-to-edge (transparent), so they show the window background.
-  // Keep it blue behind the splash, then match the app theme afterwards.
-  useEffect(() => {
-    void SystemUI.setBackgroundColorAsync(splashHidden ? navigationTheme.colors.background : SPLASH_BLUE);
-  }, [splashHidden, navigationTheme]);
+  }, [theme, scheme]);
 
   if (!hydrated || !dbReady) {
     return null;
@@ -97,7 +89,6 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style={splashHidden ? (preferDark ? 'light' : 'dark') : 'light'} />
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={navigationTheme}>
           <SafeAreaProvider>

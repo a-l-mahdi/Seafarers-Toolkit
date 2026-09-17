@@ -222,12 +222,15 @@ export function buildCvHtml(data: {
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8" />
 <style>
+  /* Table-based layout so it renders identically in the PDF AND when opened as
+     an .xls in Excel/WPS (their HTML engines don't support flexbox). */
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; color: #14232f; font-size: 11px; margin: 0; padding: 24px 26px; }
-  header { display: flex; gap: 16px; align-items: flex-start; border-bottom: 3px solid #0E5AA7; padding-bottom: 12px; margin-bottom: 6px; }
+  table.header { width: 100%; border-bottom: 3px solid #0E5AA7; padding-bottom: 12px; margin-bottom: 6px; }
+  td.photo-cell { width: 112px; vertical-align: top; padding-right: 16px; }
   .photo { width: 96px; height: 120px; object-fit: cover; border: 1px solid #c7d2dc; border-radius: 4px; }
-  .photo.placeholder { display: flex; align-items: center; justify-content: center; color: #9aa8b5; font-size: 10px; background: #f2f5f8; }
-  .head-main { flex: 1; }
+  .photo.placeholder { text-align: center; line-height: 120px; color: #9aa8b5; font-size: 10px; background: #f2f5f8; }
+  td.head-main { vertical-align: top; }
   h1 { font-size: 22px; margin: 0 0 2px; color: #0E5AA7; }
   .subtitle { font-size: 13px; color: #33475b; margin: 0 0 6px; font-weight: bold; }
   .addressed { margin: 4px 0 0; color: #33475b; }
@@ -236,27 +239,27 @@ export function buildCvHtml(data: {
   table { width: 100%; border-collapse: collapse; }
   table.fields th { text-align: left; width: 42%; color: #5b6b7a; font-weight: normal; padding: 2px 8px 2px 0; vertical-align: top; }
   table.fields td { padding: 2px 0; vertical-align: top; }
-  .two-col { display: flex; gap: 24px; }
-  .two-col > div { flex: 1; }
+  table.two-col > tbody > tr > td { width: 50%; vertical-align: top; padding-right: 18px; }
   table.grid th, table.grid td { border: 1px solid #d7e0e8; padding: 4px 6px; text-align: left; }
   table.grid th { background: #eef3f8; color: #33475b; font-size: 10px; }
   .yn { text-align: center; width: 60px; font-weight: bold; }
   .muted { color: #5b6b7a; margin: 6px 0 0; }
-  .sign { margin-top: 28px; display: flex; justify-content: space-between; color: #33475b; }
-  .sign .line { border-top: 1px solid #33475b; padding-top: 4px; width: 200px; text-align: center; }
+  table.sign { margin-top: 28px; }
+  table.sign td { border-top: 1px solid #33475b; padding-top: 4px; width: 200px; text-align: center; color: #33475b; }
+  table.sign td.gap { border: none; }
 </style></head>
 <body>
-  <header>
-    ${photoBox}
-    <div class="head-main">
+  <table class="header"><tr>
+    <td class="photo-cell">${photoBox}</td>
+    <td class="head-main">
       <h1>${esc(fullName)}</h1>
       <p class="subtitle">${esc(cv.positionAppliedFor || currentRankName || 'Seafarer')}</p>
       <table class="fields">${contact}</table>
       ${addressedTo}
-    </div>
-  </header>
+    </td>
+  </tr></table>
 
-  ${section('Personal details', `<div class="two-col"><div><table class="fields">${personal}</table></div><div><table class="fields">${ids}</table></div></div>`)}
+  ${section('Personal details', `<table class="two-col"><tr><td><table class="fields">${personal}</table></td><td><table class="fields">${ids}</table></td></tr></table>`)}
   ${section('Certificates & documents', certificates)}
   ${section('Sea service', seaService)}
   ${section('Education & training', education)}
@@ -264,10 +267,11 @@ export function buildCvHtml(data: {
   ${section('Bank details', `<table class="fields">${bank}</table>`)}
   ${section('Health declaration', health)}
 
-  <div class="sign">
-    <div class="line">Date</div>
-    <div class="line">Signature</div>
-  </div>
+  <table class="sign"><tr>
+    <td>Date</td>
+    <td class="gap"></td>
+    <td>Signature</td>
+  </tr></table>
 </body></html>`;
 }
 
@@ -307,14 +311,15 @@ export async function exportCv(): Promise<void> {
 }
 
 /**
- * Exports the CV as an Excel-openable .xls (an HTML workbook — Excel and WPS
- * open it as a spreadsheet, no library needed).
+ * Exports the CV as an Excel-openable .xls. It writes the SAME HTML as the PDF
+ * (photo, every section, tables and spacing) so the spreadsheet matches the PDF;
+ * Excel/WPS open an HTML workbook natively, so no library is needed.
  */
 export async function exportCvExcel(): Promise<void> {
   const data = await loadCvData();
-  const xls = buildCvXls(data);
+  const html = buildCvHtml(data);
   const path = `${FileSystem.cacheDirectory ?? ''}seafarer-cv-${Date.now()}.xls`;
-  await FileSystem.writeAsStringAsync(path, xls, { encoding: FileSystem.EncodingType.UTF8 });
+  await FileSystem.writeAsStringAsync(path, html, { encoding: FileSystem.EncodingType.UTF8 });
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(path, {
       mimeType: 'application/vnd.ms-excel',
@@ -324,94 +329,3 @@ export async function exportCvExcel(): Promise<void> {
   }
 }
 
-function xlsFields(pairs: [string, string][]): string {
-  return pairs
-    .filter(([, v]) => v && v.trim() !== '')
-    .map(([k, v]) => `<tr><td><b>${esc(k)}</b></td><td>${esc(v)}</td></tr>`)
-    .join('');
-}
-
-/** Builds the CV as an Excel-openable HTML workbook. */
-export function buildCvXls(data: CvData): string {
-  const { profile, cv, documents, contracts, vesselsByName, currentRankName } = data;
-  const fullName =
-    [profile?.firstName, cv.middleName, profile?.lastName].filter(Boolean).join(' ').trim() || 'Seafarer';
-
-  const personal = xlsFields([
-    ['Name', fullName],
-    ['Position applied for', cv.positionAppliedFor],
-    ['Present rank', currentRankName ?? ''],
-    ['Available from', fmt(cv.dateOfAvailability)],
-    ['Date of birth', fmt(profile?.dateOfBirth)],
-    ['Place of birth', cv.placeOfBirth],
-    ['Nationality', profile?.nationality ?? ''],
-    ['Marital status', cv.maritalStatus],
-    ['Height', cv.heightCm ? `${cv.heightCm} cm` : ''],
-    ['Weight', cv.weightKg ? `${cv.weightKg} kg` : ''],
-    ['Languages', cv.languages],
-    ['Email', profile?.email ?? ''],
-    ['Mobile', profile?.phone ?? ''],
-    ['Landline', profile?.landline ?? ''],
-    [
-      'Address',
-      [profile?.address, profile?.city, profile?.state, profile?.zipCode, profile?.country]
-        .filter(Boolean)
-        .join(', '),
-    ],
-    ['Passport no.', profile?.passportNumber ?? ''],
-    ["Seaman's book no.", profile?.seamanBookNumber ?? ''],
-    ['National seafarer ID', cv.nationalSeafarerId],
-    ['SID no.', cv.sidNumber],
-    ['Union membership', cv.unionMembership],
-    ['Next of kin', [cv.nokName, cv.nokRelationship, cv.nokPhone].filter(Boolean).join(' · ')],
-    ['Bank', [cv.bankName, cv.bankAccountNumber, cv.bankSwift].filter(Boolean).join(' · ')],
-  ]);
-
-  const certRows = documents
-    .map((d) =>
-      row([
-        esc(d.name || d.typeName || ''),
-        esc(d.number ?? ''),
-        esc(fmt(d.issueDate)),
-        d.expiryDate ? esc(fmt(d.expiryDate)) : 'Unlimited',
-        esc([d.placeOfIssue, d.issuingAuthority, d.issuingCountry].filter(Boolean).join(', ')),
-      ])
-    )
-    .join('');
-
-  const seaRows = contracts
-    .map((c) => {
-      const end = c.actualSignOff ?? c.expectedSignOff;
-      const days = c.durationDays ?? Math.max(diffInDays(c.joinDate, end), 0);
-      const v = c.vesselName ? vesselsByName.get(c.vesselName) : undefined;
-      return row([
-        esc(c.rankName ?? ''),
-        esc(c.vesselName ?? ''),
-        esc(v?.type ?? ''),
-        esc(fmt(c.joinDate)),
-        esc(fmt(end)),
-        esc(durationLabel(days)),
-        esc(v?.managementCompany ?? v?.owner ?? ''),
-      ]);
-    })
-    .join('');
-
-  const eduRows = cv.education
-    .map((e) =>
-      row([esc(e.institution), esc(fmt(e.from)), esc(fmt(e.to)), esc(e.qualification), esc(e.location ?? '')])
-    )
-    .join('');
-
-  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-<head><meta charset="utf-8" /><style>td{border:1px solid #ccc;padding:4px;} th{border:1px solid #999;background:#eef;padding:4px;}</style></head>
-<body>
-<h2>${esc(fullName)} — Seafarer CV</h2>
-<h3>Personal</h3><table>${personal}</table>
-<h3>Certificates &amp; documents</h3>
-<table><tr><th>Certificate</th><th>Number</th><th>Issued</th><th>Expiry</th><th>Place of issue</th></tr>${certRows}</table>
-<h3>Sea service</h3>
-<table><tr><th>Rank</th><th>Vessel</th><th>Type</th><th>Sign on</th><th>Sign off</th><th>Duration</th><th>Company</th></tr>${seaRows}</table>
-<h3>Education</h3>
-<table><tr><th>Institution</th><th>From</th><th>To</th><th>Qualification</th><th>Location</th></tr>${eduRows}</table>
-</body></html>`;
-}

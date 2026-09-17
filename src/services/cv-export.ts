@@ -1,7 +1,8 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import { Buffer } from 'buffer';
 import { getProfile } from '@/database/repositories/profile-repository';
 import { getCvProfile } from '@/database/repositories/cv-repository';
 import { listDocuments } from '@/database/repositories/documents-repository';
@@ -9,6 +10,10 @@ import { listContracts, listVessels } from '@/database/repositories/vessels-repo
 import { listRanks } from '@/database/repositories/ranks-repository';
 import { diffInDays } from '@/utils/date';
 import type { CvProfile, Profile, Vessel } from '@/types/domain';
+
+// ExcelJS (via JSZip) expects a global Buffer, which React Native doesn't provide.
+const globalScope = globalThis as unknown as { Buffer?: typeof Buffer };
+if (!globalScope.Buffer) globalScope.Buffer = Buffer;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -311,39 +316,105 @@ export async function exportCv(): Promise<void> {
   }
 }
 
-type Cell = string | number;
+const XL_BLUE = 'FF0E5AA7';
+const XL_LIGHT = 'FFEEF3F8';
+const XL_MUTED = 'FF5B6B7A';
+const XL_TEXT = 'FF14232F';
+const thin = { style: 'thin' as const, color: { argb: 'FFD7E0E8' } };
+const allBorders = { top: thin, left: thin, right: thin, bottom: thin };
 
-/** Builds a real .xlsx workbook (SheetJS) with every CV section, returned as
- *  base64. A genuine spreadsheet opens completely in Excel/WPS — unlike the
- *  old HTML-as-.xls trick which programs imported only partially. */
-function buildCvXlsxBase64(data: CvData): string {
-  const { profile, cv, documents, contracts, vesselsByName, currentRankName } = data;
+/** Builds a real, styled .xlsx (ExcelJS) that mirrors the PDF — coloured section
+ *  banners, bordered tables, and the profile photo — returned as base64. */
+async function buildCvXlsxBase64(data: CvData): Promise<string> {
+  const { profile, cv, documents, contracts, vesselsByName, currentRankName, photo } = data;
   const fullName =
     [profile?.firstName, cv.middleName, profile?.lastName].filter(Boolean).join(' ').trim() || 'Seafarer';
-
-  const rows: Cell[][] = [];
-  const merges: XLSX.Range[] = [];
-  const COLS = 7;
-  const banner = (title: string) => {
-    merges.push({ s: { r: rows.length, c: 0 }, e: { r: rows.length, c: COLS - 1 } });
-    rows.push([title]);
-  };
-  const pair = (label: string, value: string) => {
-    if (value && value.trim() !== '') rows.push([label, value]);
-  };
-  const blank = () => rows.push([]);
-
-  rows.push([fullName]);
-  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } });
-  rows.push([cv.positionAppliedFor || currentRankName || 'Seafarer']);
-  merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } });
-  if (cv.addressedTo) rows.push([`To: ${cv.addressedTo}`]);
-  blank();
-
   const genderMap: Record<string, string> = { male: 'Male', female: 'Female' };
   const maritalMap: Record<string, string> = { single: 'Single', married: 'Married', other: 'Other' };
 
-  banner('PERSONAL DETAILS');
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('CV', { views: [{ showGridLines: false }] });
+  const COLS = 7;
+  ws.columns = [
+    { width: 30 },
+    { width: 24 },
+    { width: 16 },
+    { width: 14 },
+    { width: 14 },
+    { width: 14 },
+    { width: 22 },
+  ];
+  let r = 1;
+
+  // ---- Header: photo (left) + name/subtitle (right) ----
+  ws.mergeCells(`C1:G1`);
+  const nameCell = ws.getCell('C1');
+  nameCell.value = fullName;
+  nameCell.font = { bold: true, size: 20, color: { argb: XL_BLUE } };
+  nameCell.alignment = { vertical: 'middle' };
+  ws.mergeCells('C2:G2');
+  ws.getCell('C2').value = cv.positionAppliedFor || currentRankName || 'Seafarer';
+  ws.getCell('C2').font = { bold: true, size: 12, color: { argb: 'FF33475B' } };
+  if (cv.addressedTo) {
+    ws.mergeCells('C3:G3');
+    ws.getCell('C3').value = `To: ${cv.addressedTo}`;
+    ws.getCell('C3').font = { color: { argb: XL_MUTED } };
+  }
+  for (let i = 1; i <= 6; i += 1) ws.getRow(i).height = 22;
+  if (photo) {
+    const comma = photo.indexOf(',');
+    const b64 = comma >= 0 ? photo.slice(comma + 1) : photo;
+    const extension = photo.slice(0, comma).includes('png') ? 'png' : 'jpeg';
+    const imageId = wb.addImage({ base64: b64, extension });
+    ws.addImage(imageId, { tl: { col: 0.1, row: 0.1 }, ext: { width: 104, height: 130 } });
+  }
+  r = 8;
+
+  const banner = (title: string) => {
+    ws.mergeCells(r, 1, r, COLS);
+    const cell = ws.getCell(r, 1);
+    cell.value = title.toUpperCase();
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: XL_BLUE } };
+    cell.alignment = { vertical: 'middle' };
+    ws.getRow(r).height = 18;
+    r += 1;
+  };
+  const pair = (label: string, value: string) => {
+    if (!value || value.trim() === '') return;
+    ws.getCell(r, 1).value = label;
+    ws.getCell(r, 1).font = { color: { argb: XL_MUTED } };
+    ws.mergeCells(r, 2, r, COLS);
+    const v = ws.getCell(r, 2);
+    v.value = value;
+    v.font = { color: { argb: XL_TEXT } };
+    v.alignment = { wrapText: true, vertical: 'top' };
+    r += 1;
+  };
+  const gridHeader = (cols: string[]) => {
+    cols.forEach((c, i) => {
+      const cell = ws.getCell(r, i + 1);
+      cell.value = c;
+      cell.font = { bold: true, size: 10, color: { argb: 'FF33475B' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: XL_LIGHT } };
+      cell.border = allBorders;
+    });
+    r += 1;
+  };
+  const gridRow = (cols: string[]) => {
+    cols.forEach((c, i) => {
+      const cell = ws.getCell(r, i + 1);
+      cell.value = c;
+      cell.border = allBorders;
+      cell.alignment = { wrapText: true, vertical: 'top' };
+    });
+    r += 1;
+  };
+  const blank = () => {
+    r += 1;
+  };
+
+  banner('Personal details');
   pair('Position applied for', cv.positionAppliedFor);
   pair('Present rank', currentRankName ?? '');
   pair('Available from', fmt(cv.dateOfAvailability));
@@ -360,7 +431,7 @@ function buildCvXlsxBase64(data: CvData): string {
   pair('Nearest airport', cv.nearestAirport);
   blank();
 
-  banner('CONTACT');
+  banner('Contact');
   pair('Email', profile?.email ?? '');
   pair('Mobile', profile?.phone ?? '');
   pair('Landline', profile?.landline ?? '');
@@ -372,7 +443,7 @@ function buildCvXlsxBase64(data: CvData): string {
   );
   blank();
 
-  banner('IDENTIFICATION');
+  banner('Identification');
   pair('Passport no.', profile?.passportNumber ?? '');
   pair("Seaman's book (CDC) no.", profile?.seamanBookNumber ?? '');
   pair('National seafarer ID', cv.nationalSeafarerId);
@@ -380,28 +451,30 @@ function buildCvXlsxBase64(data: CvData): string {
   pair('Union membership', cv.unionMembership);
   blank();
 
-  banner('CERTIFICATES & DOCUMENTS');
-  rows.push(['Certificate', 'Number', 'Issued', 'Expiry', 'Place of issue']);
+  banner('Certificates & documents');
+  gridHeader(['Certificate', 'Number', 'Issued', 'Expiry', 'Place of issue', '', '']);
   for (const d of documents) {
-    rows.push([
+    gridRow([
       d.name || d.typeName || '',
       d.number ?? '',
       fmt(d.issueDate),
       d.expiryDate ? fmt(d.expiryDate) : 'Unlimited',
       [d.placeOfIssue, d.issuingAuthority, d.issuingCountry].filter(Boolean).join(', '),
+      '',
+      '',
     ]);
   }
   blank();
 
-  banner('SEA SERVICE');
-  rows.push(['Rank', 'Vessel', 'Type', 'Sign on', 'Sign off', 'Duration', 'Company']);
+  banner('Sea service');
+  gridHeader(['Rank', 'Vessel', 'Type', 'Sign on', 'Sign off', 'Duration', 'Company']);
   let totalSeaDays = 0;
   for (const c of contracts) {
     const end = c.actualSignOff ?? c.expectedSignOff;
     const days = c.durationDays ?? Math.max(diffInDays(c.joinDate, end), 0);
     totalSeaDays += days;
     const v = c.vesselName ? vesselsByName.get(c.vesselName) : undefined;
-    rows.push([
+    gridRow([
       c.rankName ?? '',
       c.vesselName ?? '',
       v?.type ?? '',
@@ -411,26 +484,26 @@ function buildCvXlsxBase64(data: CvData): string {
       v?.managementCompany ?? v?.owner ?? '',
     ]);
   }
-  rows.push(['Total sea service', durationLabel(totalSeaDays)]);
+  pair('Total sea service', durationLabel(totalSeaDays));
   blank();
 
   if (cv.education.length) {
-    banner('EDUCATION & TRAINING');
-    rows.push(['Institution', 'From', 'To', 'Qualification', 'Location']);
+    banner('Education & training');
+    gridHeader(['Institution', 'From', 'To', 'Qualification', 'Location', '', '']);
     for (const e of cv.education) {
-      rows.push([e.institution, fmt(e.from), fmt(e.to), e.qualification, e.location ?? '']);
+      gridRow([e.institution, fmt(e.from), fmt(e.to), e.qualification, e.location ?? '', '', '']);
     }
     blank();
   }
 
-  banner('NEXT OF KIN');
+  banner('Next of kin');
   pair('Name', cv.nokName);
   pair('Relationship', cv.nokRelationship);
   pair('Phone', cv.nokPhone);
   pair('Address', cv.nokAddress);
   blank();
 
-  banner('BANK DETAILS');
+  banner('Bank details');
   pair('Bank name', cv.bankName);
   pair('Account holder', cv.bankAccountHolder);
   pair('Account no.', cv.bankAccountNumber);
@@ -440,7 +513,8 @@ function buildCvXlsxBase64(data: CvData): string {
   pair('Bank address', cv.bankAddress);
   blank();
 
-  banner('HEALTH DECLARATION');
+  banner('Health declaration');
+  gridHeader(['Question', 'Answer', '', '', '', '', '']);
   const health: [string, boolean][] = [
     ['Involved in any marine accident / investigation', cv.healthMarineAccident],
     ['Suffered accident causing temporary/partial disability', cv.healthDisability],
@@ -449,23 +523,20 @@ function buildCvXlsxBase64(data: CvData): string {
     ['Underwent psychiatric treatment', cv.healthPsychiatric],
     ['Addicted to alcohol or drugs', cv.healthAddiction],
   ];
-  for (const [q, yes] of health) rows.push([q, yes ? 'Yes' : 'No']);
-  if (cv.healthDetails) rows.push(['Details', cv.healthDetails]);
+  for (const [q, yes] of health) gridRow([q, yes ? 'Yes' : 'No', '', '', '', '', '']);
+  if (cv.healthDetails) pair('Details', cv.healthDetails);
   blank();
-  rows.push(['Date', '', '', '', '', '', 'Signature']);
+  ws.getCell(r, 1).value = 'Date';
+  ws.getCell(r, 6).value = 'Signature';
 
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{ wch: 30 }, { wch: 26 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 22 }];
-  ws['!merges'] = merges;
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'CV');
-  return XLSX.write(wb, { type: 'base64', bookType: 'xlsx' }) as string;
+  const buf = await wb.xlsx.writeBuffer();
+  return Buffer.from(buf as ArrayBuffer).toString('base64');
 }
 
-/** Exports the CV as a real .xlsx spreadsheet (all sections) and shares it. */
+/** Exports the CV as a real, styled .xlsx spreadsheet and shares it. */
 export async function exportCvExcel(): Promise<void> {
   const data = await loadCvData();
-  const b64 = buildCvXlsxBase64(data);
+  const b64 = await buildCvXlsxBase64(data);
   const path = `${FileSystem.cacheDirectory ?? ''}seafarer-cv-${Date.now()}.xlsx`;
   await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
   if (await Sharing.isAvailableAsync()) {

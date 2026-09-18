@@ -46,3 +46,7 @@ example
 /ios
 /android
 dist/
+
+# Local native module build outputs
+modules/*/android/build/
+modules/*/android/.cxx/

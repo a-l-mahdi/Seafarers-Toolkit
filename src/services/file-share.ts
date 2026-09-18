@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import MediaDownload from '../../modules/media-download';
 
 export interface ReadyFile {
   uri: string;
@@ -15,25 +16,31 @@ export async function shareFile(file: ReadyFile): Promise<void> {
   }
 }
 
-export type DownloadResult = 'saved' | 'cancelled';
+export type DownloadResult = 'saved' | 'shared' | 'cancelled';
 
 /**
- * Saves the file to a user-picked folder (Android Storage Access Framework — e.g.
- * Downloads). Returns 'cancelled' if the user dismisses the folder picker.
+ * Saves the file to the phone's public Downloads folder.
+ *
+ * On Android 10+ (API 29+) this uses MediaStore, which needs NO storage
+ * permission and shows NO folder picker — the file lands directly in Downloads.
+ * On Android 9 and below (where MediaStore Downloads is unavailable and writing
+ * there would need WRITE_EXTERNAL_STORAGE — a permission the Iranian stores flag)
+ * we fall back to the share sheet so the user can still keep the file.
  */
 export async function downloadFile(file: ReadyFile): Promise<DownloadResult> {
   if (Platform.OS !== 'android') {
     await shareFile(file);
-    return 'saved';
+    return 'shared';
   }
-  const SAF = FileSystem.StorageAccessFramework;
-  const perm = await SAF.requestDirectoryPermissionsAsync();
-  if (!perm.granted) return 'cancelled';
-  const content = await FileSystem.readAsStringAsync(file.uri, {
+
+  if (!MediaDownload.isSupported) {
+    await shareFile(file);
+    return 'shared';
+  }
+
+  const base64 = await FileSystem.readAsStringAsync(file.uri, {
     encoding: FileSystem.EncodingType.Base64,
   });
-  const base = file.name.replace(/\.[^.]+$/, ''); // SAF adds the extension from the mime type
-  const dest = await SAF.createFileAsync(perm.directoryUri, base, file.mime);
-  await FileSystem.writeAsStringAsync(dest, content, { encoding: FileSystem.EncodingType.Base64 });
+  await MediaDownload.saveToDownloads(base64, file.name, file.mime);
   return 'saved';
 }

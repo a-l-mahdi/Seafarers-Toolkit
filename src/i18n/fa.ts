@@ -167,7 +167,7 @@ const fa: Translation = {
     ready: 'فایل آماده است',
     share: 'اشتراک‌گذاری',
     download: 'دانلود',
-    saved: 'ذخیره شد',
+    saved: 'در پوشهٔ Downloads ذخیره شد',
     saveFailed: 'ذخیره ناموفق بود',
   },
   cv: {

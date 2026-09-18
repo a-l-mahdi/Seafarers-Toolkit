@@ -165,7 +165,7 @@ const en = {
     ready: 'File ready',
     share: 'Share',
     download: 'Download',
-    saved: 'Saved to device',
+    saved: 'Saved to Downloads',
     saveFailed: 'Could not save',
   },
   cv: {

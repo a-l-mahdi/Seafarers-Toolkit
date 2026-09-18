@@ -9,6 +9,8 @@ import { DatePickerField } from '@/components/ui/date-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCvProfile, useDocuments, useSaveCvProfile } from '@/hooks/queries';
 import { exportCv, exportCvExcel } from '@/services/cv-export';
+import { FileReadyModal } from '@/components/file-ready-modal';
+import type { ReadyFile } from '@/services/file-share';
 import { useTheme } from '@/hooks/use-theme';
 import { newId } from '@/utils/id';
 import { Spacing } from '@/constants/theme';
@@ -44,6 +46,7 @@ function CvForm({ initial }: { initial: CvProfile }) {
   const [cv, setCv] = useState<CvProfile>(() => initial);
   const [exporting, setExporting] = useState<null | 'pdf' | 'excel'>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [readyFile, setReadyFile] = useState<ReadyFile | null>(null);
 
   const set = <K extends keyof CvProfile>(key: K, value: CvProfile[K]) =>
     setCv((prev) => ({ ...prev, [key]: value }));
@@ -78,8 +81,8 @@ function CvForm({ initial }: { initial: CvProfile }) {
     setStatus(null);
     try {
       await save.mutateAsync(cv); // export reads from the DB, so persist edits first
-      if (format === 'pdf') await exportCv();
-      else await exportCvExcel();
+      const file = format === 'pdf' ? await exportCv() : await exportCvExcel();
+      setReadyFile(file);
     } catch (err) {
       Alert.alert(t('cv.exportFailed'), err instanceof Error ? err.message : String(err));
     } finally {
@@ -105,6 +108,7 @@ function CvForm({ initial }: { initial: CvProfile }) {
   );
 
   return (
+    <>
     <FormScrollView
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
@@ -245,6 +249,8 @@ function CvForm({ initial }: { initial: CvProfile }) {
         />
       </View>
     </FormScrollView>
+    <FileReadyModal file={readyFile} onClose={() => setReadyFile(null)} />
+    </>
   );
 }
 

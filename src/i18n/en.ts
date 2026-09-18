@@ -161,6 +161,13 @@ const en = {
       nameRequired: 'Document name is required',
     },
   },
+  files: {
+    ready: 'File ready',
+    share: 'Share',
+    download: 'Download',
+    saved: 'Saved to device',
+    saveFailed: 'Could not save',
+  },
   cv: {
     title: 'CV / Résumé',
     pulledNote:

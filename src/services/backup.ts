@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
+import type { ReadyFile } from '@/services/file-share';
 import { openDatabase } from '@/database/db';
 import { base64ToBytes } from '@/utils/xor-codec';
 import {
@@ -154,7 +154,7 @@ export async function createBackup(
   password: string,
   onProgress?: ProgressFn,
   appSettings?: BackupAppSettings
-): Promise<{ count: number; size: number }> {
+): Promise<{ count: number; size: number; file: ReadyFile }> {
   const db = await openDatabase();
   const tables: Record<string, Record<string, unknown>[]> = {};
   let count = 0;
@@ -206,14 +206,11 @@ export async function createBackup(
     encoding: FileSystem.EncodingType.Base64,
   });
   tick();
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(backupPath, {
-      mimeType: 'application/octet-stream',
-      dialogTitle: 'Seafarers Toolkit Backup',
-      UTI: 'public.data',
-    });
-  }
-  return { count, size: cumulative };
+  return {
+    count,
+    size: cumulative,
+    file: { uri: backupPath, name: 'seafarers-backup.sftk', mime: 'application/octet-stream' },
+  };
 }
 
 /** Opens the document picker so the user chooses a backup file first. */

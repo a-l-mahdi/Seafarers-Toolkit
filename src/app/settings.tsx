@@ -23,6 +23,8 @@ import { Radius, Spacing } from '@/constants/theme';
 import * as Updates from 'expo-updates';
 import { useQueryClient } from '@tanstack/react-query';
 import { createBackup, pickBackupFile, restoreBackup, type ProgressFn } from '@/services/backup';
+import { FileReadyModal } from '@/components/file-ready-modal';
+import type { ReadyFile } from '@/services/file-share';
 import type { LeaveSettings } from '@/types/domain';
 
 export default function SettingsScreen() {
@@ -118,6 +120,7 @@ function BackupCard() {
   const [status, setStatus] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [pickedFile, setPickedFile] = useState<{ uri: string; name: string } | null>(null);
+  const [readyFile, setReadyFile] = useState<ReadyFile | null>(null);
   const [dialog, setDialog] = useState<'backup' | 'restore' | null>(null);
   const { locale, theme, calendar, setLocale, setTheme, setCalendar } = useSettingsStore();
   const queryClient = useQueryClient();
@@ -130,8 +133,9 @@ function BackupCard() {
     setStatus(null);
     setProgress(0);
     try {
-      const { count } = await createBackup(password, runProgress, { locale, theme, calendar });
+      const { count, file } = await createBackup(password, runProgress, { locale, theme, calendar });
       setStatus({ text: t('settings.backupDone', { count }), tone: 'success' });
+      setReadyFile(file);
     } catch {
       setStatus({ text: t('settings.backupFailed'), tone: 'error' });
     } finally {
@@ -255,6 +259,7 @@ function BackupCard() {
           onConfirm={doRestore}
         />
       ) : null}
+      <FileReadyModal file={readyFile} onClose={() => setReadyFile(null)} />
     </Card>
   );
 }

@@ -163,6 +163,13 @@ const fa: Translation = {
       nameRequired: 'نام مدرک الزامی است',
     },
   },
+  files: {
+    ready: 'فایل آماده است',
+    share: 'اشتراک‌گذاری',
+    download: 'دانلود',
+    saved: 'ذخیره شد',
+    saveFailed: 'ذخیره ناموفق بود',
+  },
   cv: {
     title: 'رزومه',
     pulledNote:

@@ -1,8 +1,8 @@
 import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import ExcelJS from 'exceljs';
 import { Buffer } from 'buffer';
+import type { ReadyFile } from '@/services/file-share';
 import { getProfile } from '@/database/repositories/profile-repository';
 import { getCvProfile } from '@/database/repositories/cv-repository';
 import { listDocuments } from '@/database/repositories/documents-repository';
@@ -303,17 +303,13 @@ async function loadCvData(): Promise<CvData> {
   return { profile, cv, documents, contracts, vesselsByName, currentRankName, photo };
 }
 
-/** Renders the CV to a PDF and opens the share sheet. */
-export async function exportCv(): Promise<void> {
+/** Renders the CV to a PDF and returns the file (the caller decides share/save). */
+export async function exportCv(): Promise<ReadyFile> {
   const data = await loadCvData();
   const { uri } = await Print.printToFileAsync({ html: buildCvHtml(data) });
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri, {
-      mimeType: 'application/pdf',
-      dialogTitle: 'Seafarer CV',
-      UTI: 'com.adobe.pdf',
-    });
-  }
+  const dest = `${FileSystem.cacheDirectory ?? ''}Seafarer-CV-${Date.now()}.pdf`;
+  await FileSystem.copyAsync({ from: uri, to: dest });
+  return { uri: dest, name: 'Seafarer-CV.pdf', mime: 'application/pdf' };
 }
 
 const XL_BLUE = 'FF0E5AA7';
@@ -533,18 +529,16 @@ async function buildCvXlsxBase64(data: CvData): Promise<string> {
   return Buffer.from(buf as ArrayBuffer).toString('base64');
 }
 
-/** Exports the CV as a real, styled .xlsx spreadsheet and shares it. */
-export async function exportCvExcel(): Promise<void> {
+/** Builds the CV as a styled .xlsx and returns the file (caller decides share/save). */
+export async function exportCvExcel(): Promise<ReadyFile> {
   const data = await loadCvData();
   const b64 = await buildCvXlsxBase64(data);
-  const path = `${FileSystem.cacheDirectory ?? ''}seafarer-cv-${Date.now()}.xlsx`;
+  const path = `${FileSystem.cacheDirectory ?? ''}Seafarer-CV-${Date.now()}.xlsx`;
   await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(path, {
-      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      dialogTitle: 'Seafarer CV',
-      UTI: 'org.openxmlformats.spreadsheetml.sheet',
-    });
-  }
+  return {
+    uri: path,
+    name: 'Seafarer-CV.xlsx',
+    mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  };
 }
 

@@ -172,9 +172,11 @@ const en = {
     title: 'CV / Résumé',
     pulledNote:
       'Your name, email and phone come from Profile, certificates from Documents, and sea service from Contracts — all added to the CV automatically. Fill in the rest here, Save, then export a PDF.',
+    export: 'Export',
+    exportTitle: 'Export CV',
     exportPdf: 'Export PDF',
     exportExcel: 'Export Excel',
-    exporting: 'Generating…',
+    exporting: 'Preparing…',
     exportFailed: 'Could not generate the CV',
     saved: 'Saved',
     documentsNote: 'Tick the documents you want in the CV (all by default).',

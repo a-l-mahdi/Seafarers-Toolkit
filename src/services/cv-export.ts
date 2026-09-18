@@ -303,10 +303,21 @@ async function loadCvData(): Promise<CvData> {
   return { profile, cv, documents, contracts, vesselsByName, currentRankName, photo };
 }
 
+/** The very first printToFileAsync after launch can fail or hang while the print
+ *  WebView cold-starts. Retry once after a short delay so the first export works. */
+async function printToFileWithRetry(html: string): Promise<string> {
+  try {
+    return (await Print.printToFileAsync({ html })).uri;
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return (await Print.printToFileAsync({ html })).uri;
+  }
+}
+
 /** Renders the CV to a PDF and returns the file (the caller decides share/save). */
 export async function exportCv(): Promise<ReadyFile> {
   const data = await loadCvData();
-  const { uri } = await Print.printToFileAsync({ html: buildCvHtml(data) });
+  const uri = await printToFileWithRetry(buildCvHtml(data));
   const dest = `${FileSystem.cacheDirectory ?? ''}Seafarer-CV-${Date.now()}.pdf`;
   await FileSystem.copyAsync({ from: uri, to: dest });
   return { uri: dest, name: 'Seafarer-CV.pdf', mime: 'application/pdf' };

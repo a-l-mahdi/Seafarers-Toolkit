@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +18,14 @@ export function FileReadyModal({ file, onClose }: { file: ReadyFile | null; onCl
   const colors = useTheme();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flash = (msg: string) => {
+    setStatus(msg);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setStatus(null), 3000);
+  };
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   if (!file) return null;
 
@@ -35,9 +43,9 @@ export function FileReadyModal({ file, onClose }: { file: ReadyFile | null; onCl
     setStatus(null);
     try {
       const result = await downloadFile(file);
-      if (result === 'saved') setStatus(t('files.saved'));
+      if (result === 'saved') flash(t('files.saved'));
     } catch {
-      setStatus(t('files.saveFailed'));
+      flash(t('files.saveFailed'));
     } finally {
       setBusy(false);
     }

@@ -9,8 +9,7 @@ import { DatePickerField } from '@/components/ui/date-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCvProfile, useDocuments, useSaveCvProfile } from '@/hooks/queries';
 import { exportCv, exportCvExcel } from '@/services/cv-export';
-import { FileReadyModal } from '@/components/file-ready-modal';
-import type { ReadyFile } from '@/services/file-share';
+import { ExportChoiceModal } from '@/components/export-choice-modal';
 import { useTheme } from '@/hooks/use-theme';
 import { newId } from '@/utils/id';
 import { Spacing } from '@/constants/theme';
@@ -44,9 +43,9 @@ function CvForm({ initial }: { initial: CvProfile }) {
 
   const { data: documents } = useDocuments();
   const [cv, setCv] = useState<CvProfile>(() => initial);
-  const [exporting, setExporting] = useState<null | 'pdf' | 'excel'>(null);
+  const [preparing, setPreparing] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [readyFile, setReadyFile] = useState<ReadyFile | null>(null);
 
   const set = <K extends keyof CvProfile>(key: K, value: CvProfile[K]) =>
     setCv((prev) => ({ ...prev, [key]: value }));
@@ -76,17 +75,16 @@ function CvForm({ initial }: { initial: CvProfile }) {
     set('excludedDocumentIds', Array.from(next));
   };
 
-  const doExport = async (format: 'pdf' | 'excel') => {
-    setExporting(format);
+  const openExport = async () => {
+    setPreparing(true);
     setStatus(null);
     try {
       await save.mutateAsync(cv); // export reads from the DB, so persist edits first
-      const file = format === 'pdf' ? await exportCv() : await exportCvExcel();
-      setReadyFile(file);
+      setExportOpen(true);
     } catch (err) {
       Alert.alert(t('cv.exportFailed'), err instanceof Error ? err.message : String(err));
     } finally {
-      setExporting(null);
+      setPreparing(false);
     }
   };
 
@@ -233,23 +231,23 @@ function CvForm({ initial }: { initial: CvProfile }) {
       {status ? <Text style={[styles.status, { color: colors.success }]}>{status}</Text> : null}
 
       <Button label={t('common.save')} variant="secondary" onPress={doSave} />
-      <View style={styles.actions}>
-        <Button
-          label={exporting === 'pdf' ? t('cv.exporting') : t('cv.exportPdf')}
-          onPress={() => void doExport('pdf')}
-          disabled={exporting !== null}
-          style={{ flex: 1 }}
-        />
-        <Button
-          label={exporting === 'excel' ? t('cv.exporting') : t('cv.exportExcel')}
-          variant="secondary"
-          onPress={() => void doExport('excel')}
-          disabled={exporting !== null}
-          style={{ flex: 1 }}
-        />
-      </View>
+      <Button
+        label={preparing ? t('cv.exporting') : t('cv.export')}
+        onPress={() => void openExport()}
+        disabled={preparing}
+      />
     </FormScrollView>
-    <FileReadyModal file={readyFile} onClose={() => setReadyFile(null)} />
+    {exportOpen ? (
+      <ExportChoiceModal
+        visible
+        title={t('cv.exportTitle')}
+        onClose={() => setExportOpen(false)}
+        formats={[
+          { key: 'pdf', label: 'PDF', icon: 'document-text', generate: exportCv },
+          { key: 'excel', label: 'Excel', icon: 'grid', generate: exportCvExcel },
+        ]}
+      />
+    ) : null}
     </>
   );
 }
@@ -262,5 +260,4 @@ const styles = StyleSheet.create({
   eduItem: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
   eduHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs },
   status: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
-  actions: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.sm },
 });

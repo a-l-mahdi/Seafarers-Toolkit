@@ -11,14 +11,17 @@ import {
   FlatList,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type ScrollView as RNScrollView,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+// Gesture-handler's ScrollView arbitrates touches natively, so a drag that
+// starts on a TextInput scrolls the page (and only a tap focuses the field).
+import { ScrollView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
@@ -40,7 +43,7 @@ export function FormScrollView({
   children: ReactNode;
   contentContainerStyle?: StyleProp<ViewStyle>;
 }) {
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<RNScrollView>(null);
 
   const scrollToInput = (inputRef: RefObject<TextInput | null>) => {
     const scrollView = scrollRef.current;

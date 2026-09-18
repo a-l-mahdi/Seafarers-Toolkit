@@ -5,11 +5,11 @@ import {
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, ProgressBar } from '@/components/ui/primitives';

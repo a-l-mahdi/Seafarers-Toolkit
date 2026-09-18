@@ -117,15 +117,14 @@ export async function dismiss(id: string): Promise<void> {
   await db.runAsync('UPDATE notifications SET dismissed_at = ? WHERE id = ?', isoNow(), id);
 }
 
-/** Clears all in-app notifications for one document (used when its alert is opened). */
-export async function dismissForDocument(documentId: string): Promise<void> {
+/** Marks a document's notifications as read (used when its alert is opened) —
+ *  they stay in the list, just no longer highlighted as unread. */
+export async function markReadForDocument(documentId: string): Promise<void> {
   const db = await openDatabase();
-  const now = isoNow();
   await db.runAsync(
-    `UPDATE notifications SET dismissed_at = ?, read_at = COALESCE(read_at, ?)
-     WHERE event_type = 'document' AND event_id = ? AND dismissed_at IS NULL`,
-    now,
-    now,
+    `UPDATE notifications SET read_at = ?
+     WHERE event_type = 'document' AND event_id = ? AND read_at IS NULL`,
+    isoNow(),
     documentId
   );
 }

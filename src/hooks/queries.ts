@@ -322,13 +322,13 @@ export function useMarkNotificationRead() {
   });
 }
 
-/** Clears a document's notifications (in-app list + status-bar banners) when its
- *  alert page is opened. */
-export function useClearDocumentNotifications() {
+/** When a document's alert page opens: mark its notifications read (they stay in
+ *  the list, ticked) and clear its banners from the status bar. */
+export function useMarkDocumentNotificationsRead() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (documentId: string) => {
-      await NotificationsRepo.dismissForDocument(documentId);
+      await NotificationsRepo.markReadForDocument(documentId);
       await clearDeliveredForDocument(documentId);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),

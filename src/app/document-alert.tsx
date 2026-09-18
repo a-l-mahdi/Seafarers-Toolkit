@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge, Card, EmptyState, FieldRow } from '@/components/ui/primitives';
 import { FileGallery, type DisplayFile } from '@/components/file-gallery';
-import { useClearDocumentNotifications, useDocumentFiles, useDocuments } from '@/hooks/queries';
+import { useDocumentFiles, useDocuments, useMarkDocumentNotificationsRead } from '@/hooks/queries';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { documentStatus, daysUntilExpiry } from '@/domain/document-status';
 import { useTheme } from '@/hooks/use-theme';
@@ -25,12 +25,13 @@ export default function DocumentAlertScreen() {
   const colors = useTheme();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { data: documents } = useDocuments();
-  const clear = useClearDocumentNotifications();
+  const markRead = useMarkDocumentNotificationsRead();
   const doc = documents?.find((d) => d.id === id) ?? null;
 
-  // Opening a document's alert clears its notifications (in-app list + status bar).
+  // Opening a document's alert marks its notifications read (they stay in the list)
+  // and removes its banners from the status bar.
   useEffect(() => {
-    if (id) clear.mutate(id);
+    if (id) markRead.mutate(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 

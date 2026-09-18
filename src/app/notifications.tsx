@@ -60,7 +60,12 @@ export default function NotificationsScreen() {
           <Pressable
             key={n.id}
             onPress={() => openNotification(n.eventType, n.eventId, n.id)}
-            style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.row,
+              n.readAt
+                ? { backgroundColor: colors.surface, borderColor: colors.border }
+                : { backgroundColor: colors.primaryMuted, borderColor: colors.primary, borderLeftWidth: 3 },
+            ]}
           >
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: colors.text, fontWeight: n.readAt ? '400' : '700' }}>{n.title}</Text>

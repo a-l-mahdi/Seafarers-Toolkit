@@ -155,7 +155,15 @@ function eventsFor(doc: DocumentListRow): DocEvent[] {
  *    that a document has already moved past is skipped so we don't, say, fire a
  *    renewal reminder for a document that is already expired.
  */
-export async function syncNotifications(documents: DocumentListRow[]): Promise<void> {
+export async function syncNotifications(
+  documents: DocumentListRow[],
+  options?: { silent?: boolean }
+): Promise<void> {
+  // silent = create the in-app entries and schedule future banners, but don't pop
+  // an immediate banner for events already due. Used at startup and after a restore
+  // (regenerating many entries at once) so the user isn't flooded with banners;
+  // adding a document one-by-one is not silent, so that still alerts immediately.
+  const silent = options?.silent ?? false;
   const prefs = await getNotificationPrefs();
   if (!prefs.documentExpiry) return;
   const today = todayISO();
@@ -221,7 +229,7 @@ export async function syncNotifications(documents: DocumentListRow[]): Promise<v
         scheduledAt: null,
         sentAt: isoNow(),
       });
-      if (inserted) await presentNow(ev.title, ev.body, doc.id);
+      if (inserted && !silent) await presentNow(ev.title, ev.body, doc.id);
     }
   }
 }

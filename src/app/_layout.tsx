@@ -39,7 +39,7 @@ export default function RootLayout() {
       await initNotifications();
       try {
         const docs = await listDocuments();
-        await syncNotifications(docs);
+        await syncNotifications(docs, { silent: true });
       } catch {
         // notifications sync is best-effort
       }

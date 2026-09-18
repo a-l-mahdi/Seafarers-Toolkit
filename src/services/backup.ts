@@ -10,6 +10,10 @@ import {
   type ContainerHeader,
 } from '@/utils/backup-container';
 
+// NOTE: `notifications` is intentionally NOT backed up. Notifications are derived
+// state (raised/read/deleted status is transient). After a restore they are
+// regenerated fresh from the restored documents, so a needed alert always shows
+// even if it had been read or deleted in the source app.
 const TABLES = [
   'ranks',
   'profile',
@@ -20,7 +24,6 @@ const TABLES = [
   'document_files',
   'trip_files',
   'document_types',
-  'notifications',
   'settings',
 ] as const;
 
@@ -45,7 +48,6 @@ const INSERT_ORDER = [
   'vessels',
   'profile',
   'settings',
-  'notifications',
   'contracts',
   'sea_time_records',
   'documents',

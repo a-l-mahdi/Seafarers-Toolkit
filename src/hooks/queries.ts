@@ -19,7 +19,7 @@ import * as SeaTimeRepo from '@/database/repositories/sea-time-repository';
 import * as DocumentsRepo from '@/database/repositories/documents-repository';
 import * as NotificationsRepo from '@/database/repositories/notifications-repository';
 import * as TripFilesRepo from '@/database/repositories/trip-files-repository';
-import { resyncDocumentNotifications } from '@/services/notification-service';
+import { clearDeliveredForDocument, resyncDocumentNotifications } from '@/services/notification-service';
 import type { ContractListRow, DocumentListRow } from '@/database/repositories';
 
 export const queryKeys = {
@@ -318,6 +318,19 @@ export function useMarkNotificationRead() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => NotificationsRepo.markRead(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
+  });
+}
+
+/** Clears a document's notifications (in-app list + status-bar banners) when its
+ *  alert page is opened. */
+export function useClearDocumentNotifications() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (documentId: string) => {
+      await NotificationsRepo.dismissForDocument(documentId);
+      await clearDeliveredForDocument(documentId);
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
   });
 }

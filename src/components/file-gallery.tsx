@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Image } from 'expo-image';
 import * as Sharing from 'expo-sharing';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Spacing } from '@/constants/theme';
@@ -27,15 +27,22 @@ export function FileGallery({
   files,
   onRemove,
   emptyHint,
+  large,
 }: {
   files: DisplayFile[];
   onRemove?: (id: string, uri: string) => void;
   emptyHint?: string | null;
+  /** Big gallery-style tiles (3 per row) instead of the compact 72px thumbs. */
+  large?: boolean;
 }) {
   const colors = useTheme();
+  const { width } = useWindowDimensions();
   const [viewerUri, setViewerUri] = useState<DisplayFile | null>(null);
   const images = files.filter((f) => isImageFile(f.name));
   const others = files.filter((f) => !isImageFile(f.name));
+  // 3 columns with the screen's side padding (Spacing.lg = 16) and gaps (8).
+  const tile = large ? Math.floor((width - 2 * 16 - 2 * Spacing.sm) / 3) : 72;
+  const tileStyle = { width: tile, height: tile };
 
   return (
     <View style={styles.wrap}>
@@ -44,10 +51,10 @@ export function FileGallery({
       ) : null}
       <View style={styles.grid}>
         {images.map((file) => (
-          <View key={file.id} style={styles.thumbWrap}>
+          <View key={file.id} style={tileStyle}>
             <Pressable
               onPress={() => setViewerUri(file)}
-              style={[styles.thumb, { backgroundColor: colors.surfaceMuted }]}
+              style={[styles.thumb, tileStyle, { backgroundColor: colors.surfaceMuted }]}
             >
               <Image source={{ uri: file.uri }} style={styles.thumbImage} contentFit="cover" />
             </Pressable>
@@ -148,10 +155,7 @@ export async function shareFile(uri: string, fileName: string): Promise<void> {
 const styles = StyleSheet.create({
   wrap: { gap: Spacing.sm },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  thumbWrap: { width: 72, height: 72 },
   thumb: {
-    width: 72,
-    height: 72,
     borderRadius: Radius.md,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,

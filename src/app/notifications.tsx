@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/ui/primitives';
 import {
@@ -15,11 +17,25 @@ import { Radius, Spacing } from '@/constants/theme';
 export default function NotificationsScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data: notifications } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
   const dismiss = useDismissNotification();
+
+  // Opening the list clears the phone's notification tray.
+  useEffect(() => {
+    Notifications.dismissAllNotificationsAsync().catch(() => undefined);
+  }, []);
+
+  const openNotification = (eventType: string, eventId: string, id: string) => {
+    if (eventType === 'document') {
+      router.push({ pathname: '/document-alert', params: { id: eventId } });
+    } else {
+      markRead.mutate(id);
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -41,7 +57,11 @@ export default function NotificationsScreen() {
           <EmptyState title={t('notifications.empty')} />
         ) : null}
         {(notifications ?? []).map((n) => (
-          <View key={n.id} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Pressable
+            key={n.id}
+            onPress={() => openNotification(n.eventType, n.eventId, n.id)}
+            style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          >
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: colors.text, fontWeight: n.readAt ? '400' : '700' }}>{n.title}</Text>
               <Text style={{ color: colors.textMuted, fontSize: 13 }}>{n.body}</Text>
@@ -59,7 +79,7 @@ export default function NotificationsScreen() {
                 ✕
               </Text>
             </View>
-          </View>
+          </Pressable>
         ))}
       </ScrollView>
     </View>

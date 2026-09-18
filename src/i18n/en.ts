@@ -107,6 +107,7 @@ const en = {
   documents: {
     title: 'Documents',
     add: 'Add Document',
+    notFound: 'Document not found',
     name: 'Document Name',
     number: 'Document Number',
     type: 'Document Type',
@@ -447,6 +448,13 @@ const en = {
       validity: '{{name}} has less than {{days}} days of validity and is not enough to sign on.',
       expired: '{{name}} has expired.',
     },
+  },
+  documentAlert: {
+    photos: 'Document images',
+    noPhotos: 'No images saved for this document',
+    expiresIn: '{{days}} days until expiry',
+    expiredAgo: 'Expired {{days}} days ago',
+    expiredNow: 'Expired',
   },
   ranks: {
     title: 'Ranks',

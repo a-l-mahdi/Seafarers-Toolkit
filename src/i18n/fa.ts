@@ -109,6 +109,7 @@ const fa: Translation = {
   documents: {
     title: 'مدارک',
     add: 'مدرک جدید',
+    notFound: 'مدرک پیدا نشد',
     name: 'نام مدرک',
     number: 'شماره مدرک',
     type: 'نوع مدرک',
@@ -449,6 +450,13 @@ const fa: Translation = {
       validity: 'اعتبار {{name}} کمتر از {{days}} روز مانده و برای اعزام (عزیمت) کافی نیست.',
       expired: '{{name}} منقضی شده است.',
     },
+  },
+  documentAlert: {
+    photos: 'تصاویر مدرک',
+    noPhotos: 'تصویری برای این مدرک ثبت نشده است',
+    expiresIn: '{{days}} روز تا انقضا',
+    expiredAgo: '{{days}} روز از انقضا گذشته',
+    expiredNow: 'منقضی شده',
   },
   ranks: {
     title: 'درجه‌ها',

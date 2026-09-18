@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { DarkTheme, DefaultTheme, ThemeProvider, Stack } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { DarkTheme, DefaultTheme, ThemeProvider, Stack, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { Animated, I18nManager, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
@@ -25,6 +26,10 @@ export default function RootLayout() {
   const scheme = useColorScheme();
   const { locale, theme, hydrated, hydrate } = useSettingsStore();
   const [dbReady, setDbReady] = useState(false);
+  const router = useRouter();
+  const [pendingAlert, setPendingAlert] = useState<{ docId: string; nonce: number } | null>(null);
+  const handledResponses = useRef<Set<string>>(new Set());
+  const navigatedNonce = useRef<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -40,6 +45,33 @@ export default function RootLayout() {
       }
     })();
   }, [hydrate]);
+
+  // Tapping a document notification opens that document's alert page. Handles
+  // both a warm tap (listener) and a cold launch from a killed state (last response).
+  useEffect(() => {
+    const takeResponse = (response: Notifications.NotificationResponse | null) => {
+      if (!response) return;
+      const requestId = response.notification.request.identifier;
+      if (handledResponses.current.has(requestId)) return;
+      const docId = response.notification.request.content.data?.documentId;
+      if (typeof docId !== 'string' || !docId) return;
+      handledResponses.current.add(requestId);
+      setPendingAlert({ docId, nonce: Date.now() });
+    };
+
+    const sub = Notifications.addNotificationResponseReceivedListener(takeResponse);
+    Notifications.getLastNotificationResponseAsync().then(takeResponse).catch(() => undefined);
+    return () => sub.remove();
+  }, []);
+
+  // Navigate once the router (Stack) is mounted. A ref guards against re-navigating
+  // for the same tap without needing to clear state inside the effect.
+  useEffect(() => {
+    if (hydrated && dbReady && pendingAlert && navigatedNonce.current !== pendingAlert.nonce) {
+      navigatedNonce.current = pendingAlert.nonce;
+      router.push({ pathname: '/document-alert', params: { id: pendingAlert.docId } });
+    }
+  }, [hydrated, dbReady, pendingAlert, router]);
 
   useEffect(() => {
     if (hydrated) {

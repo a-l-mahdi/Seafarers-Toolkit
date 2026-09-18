@@ -36,10 +36,10 @@ export async function initNotifications(): Promise<void> {
 }
 
 /** Presents a banner right now (no server / FCM needed — this is a local notification). */
-async function presentNow(title: string, body: string): Promise<void> {
+async function presentNow(title: string, body: string, documentId: string): Promise<void> {
   try {
     await Notifications.scheduleNotificationAsync({
-      content: { title, body, sound: 'default' },
+      content: { title, body, sound: 'default', data: { documentId } },
       trigger: null, // immediate
     });
   } catch {
@@ -50,10 +50,10 @@ async function presentNow(title: string, body: string): Promise<void> {
 /** Schedules a local banner for a future date (fires even if the app is closed;
  *  restored after reboot by the library's boot receiver). Inexact by default, so
  *  no SCHEDULE_EXACT_ALARM permission is required. */
-async function scheduleAt(title: string, body: string, fireDate: Date): Promise<void> {
+async function scheduleAt(title: string, body: string, fireDate: Date, documentId: string): Promise<void> {
   try {
     await Notifications.scheduleNotificationAsync({
-      content: { title, body, sound: 'default' },
+      content: { title, body, sound: 'default', data: { documentId } },
       trigger: { type: SchedulableTriggerInputTypes.DATE, date: fireDate, channelId: CHANNEL_ID },
     });
   } catch {
@@ -184,7 +184,7 @@ export async function syncNotifications(documents: DocumentListRow[]): Promise<v
 
       if (ev.fireISO >= today) {
         // Upcoming (or today): (re)schedule the banner and keep a hidden pending row.
-        await scheduleAt(ev.title, ev.body, fireMomentFor(ev.fireISO));
+        await scheduleAt(ev.title, ev.body, fireMomentFor(ev.fireISO), doc.id);
         if (!existing) {
           await NotificationsRepo.upsertNotification({
             eventType: 'document',
@@ -221,8 +221,23 @@ export async function syncNotifications(documents: DocumentListRow[]): Promise<v
         scheduledAt: null,
         sentAt: isoNow(),
       });
-      if (inserted) await presentNow(ev.title, ev.body);
+      if (inserted) await presentNow(ev.title, ev.body, doc.id);
     }
+  }
+}
+
+/** Removes any delivered banners for one document from the status bar (called when
+ *  the user opens that document's alert). */
+export async function clearDeliveredForDocument(documentId: string): Promise<void> {
+  try {
+    const presented = await Notifications.getPresentedNotificationsAsync();
+    for (const n of presented) {
+      if (n.request.content.data?.documentId === documentId) {
+        await Notifications.dismissNotificationAsync(n.request.identifier);
+      }
+    }
+  } catch {
+    // best-effort
   }
 }
 

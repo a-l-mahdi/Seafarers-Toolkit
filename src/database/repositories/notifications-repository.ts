@@ -116,3 +116,16 @@ export async function dismiss(id: string): Promise<void> {
   const db = await openDatabase();
   await db.runAsync('UPDATE notifications SET dismissed_at = ? WHERE id = ?', isoNow(), id);
 }
+
+/** Clears all in-app notifications for one document (used when its alert is opened). */
+export async function dismissForDocument(documentId: string): Promise<void> {
+  const db = await openDatabase();
+  const now = isoNow();
+  await db.runAsync(
+    `UPDATE notifications SET dismissed_at = ?, read_at = COALESCE(read_at, ?)
+     WHERE event_type = 'document' AND event_id = ? AND dismissed_at IS NULL`,
+    now,
+    now,
+    documentId
+  );
+}

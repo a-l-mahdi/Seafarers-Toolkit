@@ -118,9 +118,9 @@ export function LabeledInput({
           multiline={multiline}
           secureTextEntry={isPassword && !reveal}
           autoCapitalize="none"
-          // Never scroll inside the field: this releases the touch to the parent
-          // ScrollView, so a drag that starts on an input still scrolls the page.
-          scrollEnabled={false}
+          // Only multiline needs internal scroll disabled; single-line fields let
+          // the gesture-handler ScrollView arbitrate the drag (scroll vs. focus).
+          scrollEnabled={multiline ? false : undefined}
           onFocus={() => scrollHelper?.scrollToInput(inputRef)}
         />
         {isPassword ? (

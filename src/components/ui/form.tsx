@@ -115,9 +115,9 @@ export function LabeledInput({
           multiline={multiline}
           secureTextEntry={isPassword && !reveal}
           autoCapitalize="none"
-          // Multiline inputs no longer swallow vertical drags: the page scrolls
-          // and the field auto-grows instead of scrolling internally.
-          scrollEnabled={multiline ? false : undefined}
+          // Never scroll inside the field: this releases the touch to the parent
+          // ScrollView, so a drag that starts on an input still scrolls the page.
+          scrollEnabled={false}
           onFocus={() => scrollHelper?.scrollToInput(inputRef)}
         />
         {isPassword ? (

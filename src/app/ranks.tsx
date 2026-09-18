@@ -152,6 +152,7 @@ export default function RanksScreen() {
                         <TextInput
                           style={[styles.textInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
                           value={draft.name}
+                          scrollEnabled={false}
                           onChangeText={(v) =>
                             setDrafts((d) => ({ ...d, [rank.id]: { ...draftFor(rank), name: v } }))
                           }
@@ -162,6 +163,7 @@ export default function RanksScreen() {
                           keyboardType="numeric"
                           placeholder={t('ranks.promotionMonths')}
                           placeholderTextColor={colors.textMuted}
+                          scrollEnabled={false}
                           onChangeText={(v) =>
                             setDrafts((d) => ({ ...d, [rank.id]: { ...draftFor(rank), promotionMonths: v } }))
                           }

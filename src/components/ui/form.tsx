@@ -94,6 +94,7 @@ export function LabeledInput({
   const scrollHelper = useContext(ScrollToInputContext);
   const isPassword = !!secureTextEntry;
   const [reveal, setReveal] = useState(false);
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
       <Text style={[styles.label, { color: colors.textMuted }]}>{label}</Text>
@@ -118,11 +119,22 @@ export function LabeledInput({
           multiline={multiline}
           secureTextEntry={isPassword && !reveal}
           autoCapitalize="none"
-          // Only multiline needs internal scroll disabled; single-line fields let
-          // the gesture-handler ScrollView arbitrate the drag (scroll vs. focus).
           scrollEnabled={multiline ? false : undefined}
-          onFocus={() => scrollHelper?.scrollToInput(inputRef)}
+          onFocus={() => {
+            setFocused(true);
+            scrollHelper?.scrollToInput(inputRef);
+          }}
+          onBlur={() => setFocused(false)}
         />
+        {/* While the field isn't focused, a transparent Pressable covers it: a tap
+            focuses the field, but a drag is released to the ScrollView so the page
+            scrolls (a TextInput would swallow the drag on Android — RNGH #3520). */}
+        {!focused ? (
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => inputRef.current?.focus()}
+          />
+        ) : null}
         {isPassword ? (
           <Pressable onPress={() => setReveal((r) => !r)} hitSlop={8} style={styles.eyeBtn}>
             <Ionicons

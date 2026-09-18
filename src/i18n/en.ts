@@ -434,10 +434,18 @@ const en = {
     markAllRead: 'Mark all read',
     empty: 'No notifications',
     types: {
+      expiry: 'Expiry alert',
+      validity: 'Sign-on validity',
+      expired: 'Expired',
       document_expiry: 'Document Expiry',
       contract_ending: 'Contract Ending',
       leave_ending: 'Leave Ending',
       rank_progress: 'Rank Progress',
+    },
+    msg: {
+      warning: '{{name}} expires in {{days}} days — renew it now.',
+      validity: '{{name}} has less than {{days}} days of validity and is not enough to sign on.',
+      expired: '{{name}} has expired.',
     },
   },
   ranks: {

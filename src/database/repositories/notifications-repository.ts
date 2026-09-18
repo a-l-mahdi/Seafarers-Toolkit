@@ -19,11 +19,13 @@ function mapRow(row: Record<string, unknown>): AppNotification {
   };
 }
 
+/** Only *delivered* notifications (sent_at set) appear in the in-app centre;
+ *  rows for future events that are still scheduled stay hidden until they fire. */
 export async function listNotifications(includeDismissed = false): Promise<AppNotification[]> {
   const db = await openDatabase();
-  const where = includeDismissed ? '' : 'WHERE dismissed_at IS NULL';
+  const dismissClause = includeDismissed ? '' : 'AND dismissed_at IS NULL';
   const rows = await db.getAllAsync<Record<string, unknown>>(
-    `SELECT * FROM notifications ${where} ORDER BY created_at DESC LIMIT 200`
+    `SELECT * FROM notifications WHERE sent_at IS NOT NULL ${dismissClause} ORDER BY sent_at DESC LIMIT 200`
   );
   return rows.map(mapRow);
 }
@@ -31,9 +33,51 @@ export async function listNotifications(includeDismissed = false): Promise<AppNo
 export async function unreadCount(): Promise<number> {
   const db = await openDatabase();
   const row = await db.getFirstAsync<{ c: number }>(
-    'SELECT COUNT(*) AS c FROM notifications WHERE read_at IS NULL AND dismissed_at IS NULL'
+    'SELECT COUNT(*) AS c FROM notifications WHERE sent_at IS NOT NULL AND read_at IS NULL AND dismissed_at IS NULL'
   );
   return row?.c ?? 0;
+}
+
+/** Looks up a single notification by its dedupe key. */
+export async function getNotification(
+  eventType: string,
+  eventId: string,
+  notificationType: string
+): Promise<{ id: string; sentAt: string | null; scheduledAt: string | null } | null> {
+  const db = await openDatabase();
+  const row = await db.getFirstAsync<Record<string, unknown>>(
+    `SELECT id, sent_at, scheduled_at FROM notifications
+     WHERE event_type = ? AND event_id = ? AND notification_type = ?`,
+    eventType,
+    eventId,
+    notificationType
+  );
+  if (!row) return null;
+  return {
+    id: String(row.id),
+    sentAt: (row.sent_at as string) ?? null,
+    scheduledAt: (row.scheduled_at as string) ?? null,
+  };
+}
+
+/** Marks a previously-scheduled notification as delivered (its OS banner has fired). */
+export async function markDelivered(id: string, sentAt: string): Promise<void> {
+  const db = await openDatabase();
+  await db.runAsync('UPDATE notifications SET sent_at = ? WHERE id = ? AND sent_at IS NULL', sentAt, id);
+}
+
+/** Removes document notifications whose document no longer exists. */
+export async function pruneDocumentNotifications(keepEventIds: string[]): Promise<void> {
+  const db = await openDatabase();
+  if (keepEventIds.length === 0) {
+    await db.runAsync(`DELETE FROM notifications WHERE event_type = 'document'`);
+    return;
+  }
+  const placeholders = keepEventIds.map(() => '?').join(',');
+  await db.runAsync(
+    `DELETE FROM notifications WHERE event_type = 'document' AND event_id NOT IN (${placeholders})`,
+    ...keepEventIds
+  );
 }
 
 /** Insert a notification; ignored if an identical one already exists (dedupe). */

@@ -19,6 +19,7 @@ import * as SeaTimeRepo from '@/database/repositories/sea-time-repository';
 import * as DocumentsRepo from '@/database/repositories/documents-repository';
 import * as NotificationsRepo from '@/database/repositories/notifications-repository';
 import * as TripFilesRepo from '@/database/repositories/trip-files-repository';
+import { resyncDocumentNotifications } from '@/services/notification-service';
 import type { ContractListRow, DocumentListRow } from '@/database/repositories';
 
 export const queryKeys = {
@@ -185,7 +186,12 @@ export function useSaveDocument() {
   return useMutation({
     mutationFn: (input: Omit<Document, 'id' | 'createdAt'> & { id?: string }) =>
       DocumentsRepo.saveDocument(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.documents }),
+    onSuccess: async () => {
+      // Reconcile reminders immediately so a just-added expired / in-window doc alerts now.
+      await resyncDocumentNotifications();
+      qc.invalidateQueries({ queryKey: queryKeys.documents });
+      qc.invalidateQueries({ queryKey: queryKeys.notifications });
+    },
   });
 }
 
@@ -193,7 +199,11 @@ export function useDeleteDocument() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => DocumentsRepo.deleteDocument(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.documents }),
+    onSuccess: async () => {
+      await resyncDocumentNotifications();
+      qc.invalidateQueries({ queryKey: queryKeys.documents });
+      qc.invalidateQueries({ queryKey: queryKeys.notifications });
+    },
   });
 }
 

@@ -436,10 +436,18 @@ const fa: Translation = {
     markAllRead: 'خواندن همه',
     empty: 'اعلانی وجود ندارد',
     types: {
+      expiry: 'هشدار انقضا',
+      validity: 'هشدار اعزام',
+      expired: 'منقضی‌شده',
       document_expiry: 'انقضای مدرک',
       contract_ending: 'پایان قرارداد',
       leave_ending: 'پایان مرخصی',
       rank_progress: 'پیشرفت درجه',
+    },
+    msg: {
+      warning: '{{name}} تا {{days}} روز دیگر منقضی می‌شود — همین حالا برای تمدید اقدام کنید.',
+      validity: 'اعتبار {{name}} کمتر از {{days}} روز مانده و برای اعزام (عزیمت) کافی نیست.',
+      expired: '{{name}} منقضی شده است.',
     },
   },
   ranks: {

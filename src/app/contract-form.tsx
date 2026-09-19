@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, InteractionManager, KeyboardAvoidingView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/primitives';
@@ -76,10 +76,18 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
   const [travelDays, setTravelDays] = useState(
     initial?.travelDays != null ? String(initial.travelDays) : ''
   );
+  const [bonus, setBonus] = useState(initial?.bonus != null ? String(initial.bonus) : '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [pending, setPending] = useState<DisplayFile[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  // Render the (heavier) attachments section only after the open animation, so
+  // editing a contract opens instantly instead of stalling on the transition.
+  const [showFiles, setShowFiles] = useState(false);
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => setShowFiles(true));
+    return () => task.cancel();
+  }, []);
 
   const handleAdd = async (source: 'camera' | 'gallery' | 'file') => {
     let uri: string | null = null;
@@ -165,6 +173,7 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
         monthlyWage: parseFloat(monthlyWage) || null,
         wageCurrency: wageCurrency.trim() || null,
         travelDays: parseInt(travelDays, 10) || null,
+        bonus: parseFloat(bonus) || null,
         status: isISODate(actualSignOff) ? 'completed' : 'active',
         notes: notes.trim() || null,
       });
@@ -291,12 +300,15 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
           onChangeText={setTravelDays}
           keyboardType="numeric"
         />
-        <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: -Spacing.sm, marginBottom: Spacing.md }}>
-          {t('contracts.travelDaysHint')}
-        </Text>
+        <LabeledInput
+          label={t('contracts.bonus')}
+          value={bonus}
+          onChangeText={setBonus}
+          keyboardType="numeric"
+        />
         <LabeledInput label={t('contracts.notes')} value={notes} onChangeText={setNotes} multiline />
         {contractId ? (
-          <ContractFilesSection contractId={contractId} />
+          showFiles ? <ContractFilesSection contractId={contractId} /> : null
         ) : (
           <View style={styles.filesSection}>
             <Text style={{ color: colors.textMuted, fontSize: 13 }}>{t('tripFiles.contract')}</Text>

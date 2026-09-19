@@ -371,9 +371,6 @@ function LeavePatternCard() {
       </Text>
       <LabeledInput label={t('settings.onboardDays')} value={onboard} onChangeText={setOnboardDays} keyboardType="numeric" />
       <LabeledInput label={t('settings.leaveDays')} value={leave} onChangeText={setLeaveDays} keyboardType="numeric" />
-      <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 8 }}>
-        {t('settings.leaveDecimalHint')}
-      </Text>
       <Button label={t('common.save')} onPress={save} variant="secondary" />
     </Card>
   );

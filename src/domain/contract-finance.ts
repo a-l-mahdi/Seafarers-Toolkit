@@ -24,11 +24,13 @@ export interface ContractFinance {
   ended: boolean;
   travelDays: number;
   travelPay: number;
+  /** One-off trip bonus. */
+  bonus: number;
   /** Wage for the days worked so far (join → today, capped at sign-off). */
   earnedToDate: number;
   /** Wage for the full contract length. */
   earnedFullContract: number;
-  /** Full-contract wage plus the travel/repatriation allowance. */
+  /** Full-contract wage plus the travel allowance and the trip bonus. */
   totalWithTravel: number;
 }
 
@@ -39,8 +41,9 @@ export function contractFinance(contract: Contract, now: Date = new Date()): Con
   const rate = dailyWage(monthlyWage);
   const travelDays = Math.max(contract.travelDays ?? 0, 0);
   const travelPay = rate * travelDays;
+  const bonus = Math.max(contract.bonus ?? 0, 0);
   return {
-    hasWage: monthlyWage > 0,
+    hasWage: monthlyWage > 0 || bonus > 0,
     monthlyWage,
     dailyRate: rate,
     currency: contract.wageCurrency || 'USD',
@@ -51,9 +54,10 @@ export function contractFinance(contract: Contract, now: Date = new Date()): Con
     ended: cd.ended,
     travelDays,
     travelPay,
+    bonus,
     earnedToDate: rate * cd.elapsedDays,
     earnedFullContract: rate * cd.totalDays,
-    totalWithTravel: rate * cd.totalDays + travelPay,
+    totalWithTravel: rate * cd.totalDays + travelPay + bonus,
   };
 }
 
@@ -76,12 +80,13 @@ export function projectSignOff(
 ): SignOffProjection {
   const rate = dailyWage(contract.monthlyWage);
   const travelPay = rate * Math.max(contract.travelDays ?? 0, 0);
+  const bonus = Math.max(contract.bonus ?? 0, 0);
   const days = Math.max(diffInDays(contract.joinDate, signOffISO), 0);
   const wageBeforeTravel = rate * days;
   return {
     days,
     wageBeforeTravel,
-    wage: wageBeforeTravel + travelPay,
+    wage: wageBeforeTravel + travelPay + bonus,
     leaveDays: earnedLeaveDays(settings, days),
   };
 }

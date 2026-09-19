@@ -98,6 +98,8 @@ export interface Contract {
   wageCurrency: string | null;
   /** Extra paid days on top of the contract (repatriation / travel allowance). */
   travelDays: number | null;
+  /** One-off bonus paid for this trip, in the wage currency. */
+  bonus: number | null;
   status: ContractStatus;
   notes: string | null;
   createdAt: string;

@@ -191,6 +191,14 @@ function ContractBody({ contract }: { contract: ContractListRow }) {
                 </Text>
               </View>
             ) : null}
+            {fin.bonus > 0 ? (
+              <View style={[styles.travel, { borderColor: colors.border }]}>
+                <Text style={{ color: colors.textMuted, fontSize: 13 }}>{t('contractDetail.bonus')}</Text>
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: '700' }}>
+                  + {formatMoney(fin.bonus, currency)}
+                </Text>
+              </View>
+            ) : null}
             <View style={[styles.total, { backgroundColor: colors.primaryMuted }]}>
               <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>
                 {t('contractDetail.totalWithTravel')}

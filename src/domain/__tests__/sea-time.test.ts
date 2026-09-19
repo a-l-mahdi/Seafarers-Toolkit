@@ -12,6 +12,7 @@ const contract: Contract = {
   monthlyWage: null,
   wageCurrency: null,
   travelDays: null,
+  bonus: null,
   status: 'active',
   notes: null,
   createdAt: '',

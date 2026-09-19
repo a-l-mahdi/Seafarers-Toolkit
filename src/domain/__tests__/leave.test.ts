@@ -21,6 +21,7 @@ function contract(id: string, joinDate: string, expectedSignOff: string, actualS
     monthlyWage: null,
     wageCurrency: null,
     travelDays: null,
+    bonus: null,
     status: actualSignOff ? 'completed' : 'active',
     notes: null,
     createdAt: '',

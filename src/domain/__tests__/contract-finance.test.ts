@@ -21,6 +21,7 @@ function contract(overrides: Partial<Contract> = {}): Contract {
     monthlyWage: 3000, // → 100/day
     wageCurrency: 'USD',
     travelDays: 2,
+    bonus: null,
     status: 'active',
     notes: null,
     createdAt: '',
@@ -59,6 +60,14 @@ describe('contract finance', () => {
     expect(proj.wageBeforeTravel).toBe(6000); // 60 × 100
     expect(proj.wage).toBe(6200); // + 2 travel days × 100
     expect(proj.leaveDays).toBe(30); // 60 × 0.5
+  });
+
+  it('adds a trip bonus to the total and the projection', () => {
+    const fin = contractFinance(contract({ bonus: 500 }), new Date('2026-06-01T00:00:00'));
+    expect(fin.bonus).toBe(500);
+    expect(fin.totalWithTravel).toBe(12700); // 12000 + 200 travel + 500 bonus
+    const proj = projectSignOff(contract({ bonus: 500 }), ratio, '2026-03-02'); // 60 days
+    expect(proj.wage).toBe(6700); // 6000 + 200 travel + 500 bonus
   });
 
   it('reports no wage when none is set', () => {

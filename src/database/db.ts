@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS contracts (
   monthly_wage REAL,
   wage_currency TEXT,
   travel_days INTEGER,
+  bonus REAL,
   status TEXT NOT NULL DEFAULT 'planned',
   notes TEXT,
   created_at TEXT NOT NULL,
@@ -207,6 +208,9 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   }
   if (!contractNames.has('travel_days')) {
     await db.execAsync('ALTER TABLE contracts ADD COLUMN travel_days INTEGER');
+  }
+  if (!contractNames.has('bonus')) {
+    await db.execAsync('ALTER TABLE contracts ADD COLUMN bonus REAL');
   }
   // Contact fields on the profile (address block + landline) — used by the CV.
   const profileCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(profile)');

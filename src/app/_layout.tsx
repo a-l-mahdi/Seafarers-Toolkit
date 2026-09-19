@@ -22,7 +22,17 @@ SplashScreen.preventAutoHideAsync();
 I18nManager.allowRTL(true);
 
 export default function RootLayout() {
-  const [queryClient] = useState(() => new QueryClient());
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        // Reuse cached data across screen navigations instead of re-querying the DB
+        // on every mount (which made opening screens feel laggy). Mutations still
+        // invalidate the relevant queries, so edits stay fresh.
+        defaultOptions: {
+          queries: { staleTime: 60_000, gcTime: 5 * 60_000, refetchOnWindowFocus: false, retry: 1 },
+        },
+      })
+  );
   const scheme = useColorScheme();
   const { locale, theme, hydrated, hydrate } = useSettingsStore();
   const [dbReady, setDbReady] = useState(false);

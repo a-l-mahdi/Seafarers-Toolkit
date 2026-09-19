@@ -13,6 +13,7 @@ const baseContract: Contract = {
   monthlyWage: null,
   wageCurrency: null,
   travelDays: null,
+  bonus: null,
   status: 'active',
   notes: null,
   createdAt: '2026-09-01T00:00:00Z',

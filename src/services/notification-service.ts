@@ -35,12 +35,14 @@ export async function initNotifications(): Promise<void> {
   }
 }
 
-/** Presents a banner right now (no server / FCM needed — this is a local notification). */
+/** Presents a banner right now (no server / FCM needed — this is a local notification).
+ *  Fired ~immediately on the high-importance 'alerts' channel so it appears as a
+ *  heads-up in the status bar rather than silently in a default channel. */
 async function presentNow(title: string, body: string, documentId: string): Promise<void> {
   try {
     await Notifications.scheduleNotificationAsync({
       content: { title, body, sound: 'default', data: { documentId } },
-      trigger: null, // immediate
+      trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + 1000), channelId: CHANNEL_ID },
     });
   } catch {
     // best-effort
@@ -155,15 +157,7 @@ function eventsFor(doc: DocumentListRow): DocEvent[] {
  *    that a document has already moved past is skipped so we don't, say, fire a
  *    renewal reminder for a document that is already expired.
  */
-export async function syncNotifications(
-  documents: DocumentListRow[],
-  options?: { silent?: boolean }
-): Promise<void> {
-  // silent = create the in-app entries and schedule future banners, but don't pop
-  // an immediate banner for events already due. Used at startup and after a restore
-  // (regenerating many entries at once) so the user isn't flooded with banners;
-  // adding a document one-by-one is not silent, so that still alerts immediately.
-  const silent = options?.silent ?? false;
+export async function syncNotifications(documents: DocumentListRow[]): Promise<void> {
   const prefs = await getNotificationPrefs();
   if (!prefs.documentExpiry) return;
   const today = todayISO();
@@ -229,7 +223,7 @@ export async function syncNotifications(
         scheduledAt: null,
         sentAt: isoNow(),
       });
-      if (inserted && !silent) await presentNow(ev.title, ev.body, doc.id);
+      if (inserted) await presentNow(ev.title, ev.body, doc.id);
     }
   }
 }

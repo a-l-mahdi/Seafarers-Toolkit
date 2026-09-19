@@ -11,7 +11,7 @@ import { contractFinance, projectSignOff, formatMoney } from '@/domain/contract-
 import { earnedLeaveDays } from '@/domain/leave';
 import { useTheme } from '@/hooks/use-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { isISODate } from '@/utils/date';
+import { addDaysISO, isISODate, todayISO } from '@/utils/date';
 import { Radius, Spacing } from '@/constants/theme';
 import type { ContractListRow } from '@/hooks/queries';
 import type { LeaveSettings } from '@/types/domain';
@@ -106,6 +106,13 @@ function ContractBody({ contract }: { contract: ContractListRow }) {
   const leaveToday = earnedLeaveDays(settings, cd.elapsedDays);
   const leaveFull = earnedLeaveDays(settings, cd.totalDays);
 
+  // Leave summary: for an active contract it's leave earned if signing off TODAY
+  // (running to today + that many days); for a completed one it's the total leave
+  // earned, running from the actual sign-off date.
+  const leaveDaysShown = isActive ? leaveToday : leaveFull;
+  const leaveFromISO = isActive ? todayISO() : endDate;
+  const leaveUntilISO = addDaysISO(leaveFromISO, leaveDaysShown);
+
   // "If I sign off on …" projection — defaults to the expected sign-off date.
   const [projDate, setProjDate] = useState(endDate);
   const proj = isISODate(projDate) ? projectSignOff(contract, settings, projDate) : null;
@@ -157,6 +164,14 @@ function ContractBody({ contract }: { contract: ContractListRow }) {
             {t('dashboard.remaining')}: {cd.remainingDays} {t('common.days')}
           </Text>
         ) : null}
+        <View style={[styles.leaveInfo, { backgroundColor: colors.successMuted }]}>
+          <Text style={[styles.leaveInfoLabel, { color: colors.text }]}>
+            {isActive ? t('contractDetail.leaveToday') : t('contractDetail.leaveTotalLabel')}
+          </Text>
+          <Text style={[styles.leaveInfoValue, { color: colors.success }]}>
+            {leaveDaysShown} {t('common.days')} · {t('contractDetail.until')} {formatDate(leaveUntilISO)}
+          </Text>
+        </View>
       </Card>
 
       {/* Wages */}
@@ -165,19 +180,17 @@ function ContractBody({ contract }: { contract: ContractListRow }) {
         {fin.hasWage ? (
           <>
             <View style={styles.statGrid}>
-              <Stat
-                label={t('contractDetail.earnedToDate')}
-                value={formatMoney(fin.earnedToDate, currency)}
-                hint={`${cd.elapsedDays} ${t('common.days')}`}
-              />
+              {isActive ? (
+                <Stat
+                  label={t('contractDetail.earnedToDate')}
+                  value={formatMoney(fin.earnedToDate, currency)}
+                  hint={`${cd.elapsedDays} ${t('common.days')}`}
+                />
+              ) : null}
               <Stat
                 label={t('contractDetail.earnedFull')}
                 value={formatMoney(fin.earnedFullContract, currency)}
                 hint={`${cd.totalDays} ${t('common.days')}`}
-              />
-              <Stat
-                label={t('contractDetail.leaveToday')}
-                value={`${leaveToday} ${t('common.days')}`}
               />
               <Stat label={t('contractDetail.dailyRate')} value={formatMoney(fin.dailyRate, currency)} />
             </View>
@@ -213,30 +226,29 @@ function ContractBody({ contract }: { contract: ContractListRow }) {
         )}
       </Card>
 
-      {/* If I sign off on a future date */}
-      <Card>
-        <Text style={[styles.section, { color: colors.text }]}>{t('contractDetail.projectionTitle')}</Text>
-        <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: Spacing.sm }}>
-          {t('contractDetail.projectionHint')}
-        </Text>
-        <DatePickerField label={t('contractDetail.signOffOn')} value={projDate} onChange={setProjDate} />
-        {proj ? (
-          <View style={styles.statGrid}>
-            <Stat
-              label={t('contractDetail.projDays')}
-              value={`${proj.days} ${t('common.days')}`}
-            />
-            <Stat label={t('contractDetail.projLeave')} value={`${proj.leaveDays} ${t('common.days')}`} />
-            {fin.hasWage ? (
-              <Stat
-                label={t('contractDetail.projWage')}
-                value={formatMoney(proj.wage, currency)}
-                hint={fin.travelDays > 0 ? t('contractDetail.inclTravel') : undefined}
-              />
-            ) : null}
-          </View>
-        ) : null}
-      </Card>
+      {/* If I sign off on a future date — only relevant for an active contract. */}
+      {isActive ? (
+        <Card>
+          <Text style={[styles.section, { color: colors.text }]}>{t('contractDetail.projectionTitle')}</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: Spacing.sm }}>
+            {t('contractDetail.projectionHint')}
+          </Text>
+          <DatePickerField label={t('contractDetail.signOffOn')} value={projDate} onChange={setProjDate} />
+          {proj ? (
+            <View style={styles.statGrid}>
+              <Stat label={t('contractDetail.projDays')} value={`${proj.days} ${t('common.days')}`} />
+              <Stat label={t('contractDetail.projLeave')} value={`${proj.leaveDays} ${t('common.days')}`} />
+              {fin.hasWage ? (
+                <Stat
+                  label={t('contractDetail.projWage')}
+                  value={formatMoney(proj.wage, currency)}
+                  hint={fin.travelDays > 0 ? t('contractDetail.inclTravel') : undefined}
+                />
+              ) : null}
+            </View>
+          ) : null}
+        </Card>
+      ) : null}
     </ScrollView>
   );
 }
@@ -258,6 +270,9 @@ const styles = StyleSheet.create({
   track: { height: 10, borderRadius: 5, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 5 },
   remaining: { fontSize: 13, fontWeight: '500', marginTop: 2 },
+  leaveInfo: { borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, marginTop: Spacing.sm, gap: 2 },
+  leaveInfoLabel: { fontSize: 13, fontWeight: '600' },
+  leaveInfoValue: { fontSize: 14, fontWeight: '700' },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   stat: { flexGrow: 1, flexBasis: '46%', borderRadius: Radius.md, padding: Spacing.md, gap: 4 },
   statLabel: { fontSize: 12 },

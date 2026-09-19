@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Card } from '@/components/ui/primitives';
 import { FormScrollView, LabeledInput, Select } from '@/components/ui/form';
 import { useCreateRank, useDeleteRank, useMoveRank, useRanks, useUpdateRank } from '@/hooks/queries';
-import { isTopRank, promotionDaysFromMonths } from '@/domain/career';
+import { isTopRank } from '@/domain/career';
 import { buildRankColorMap } from '@/domain/rank-color';
 import { useTheme } from '@/hooks/use-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -123,7 +123,7 @@ export default function RanksScreen() {
             </Text>
             {depRanks.map((rank, index) => {
               const draft = draftFor(rank);
-              const days = promotionDaysFromMonths(rank.promotionMonths);
+              const months = rank.promotionMonths ?? 12;
               return (
                 <View key={rank.id} style={styles.row}>
                   {editing ? (
@@ -178,7 +178,7 @@ export default function RanksScreen() {
                       <Text style={{ color: colors.textMuted, fontSize: 13 }}>
                         {isDepartmentTop(rank)
                           ? t('career.topRank')
-                          : `${days} ${t('common.days')}`}
+                          : `${months} ${t('common.month')}`}
                       </Text>
                     </View>
                   )}

@@ -9,6 +9,7 @@ const ITEMS: { href: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { href: '/cv', icon: 'document-text' },
   { href: '/sea-time', icon: 'water' },
   { href: '/vessels', icon: 'boat' },
+  { href: '/documents', icon: 'document-text' },
   { href: '/calendar', icon: 'calendar' },
   { href: '/reports', icon: 'stats-chart' },
   { href: '/notifications', icon: 'notifications' },
@@ -66,6 +67,8 @@ function toLabelKey(href: string): string {
       return 'more.seaTime';
     case '/vessels':
       return 'more.vessels';
+    case '/documents':
+      return 'more.documents';
     case '/calendar':
       return 'more.calendar';
     case '/reports':

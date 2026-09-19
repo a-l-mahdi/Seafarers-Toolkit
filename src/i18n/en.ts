@@ -39,7 +39,7 @@ const en = {
     cv: 'CV / Résumé',
     seaTime: 'Sea Time',
     vessels: 'Vessels',
-    documents: 'Documents',
+    documentTypes: 'Document Types',
     calendar: 'Calendar',
     reports: 'Reports',
     notifications: 'Notifications',

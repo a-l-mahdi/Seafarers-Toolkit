@@ -41,7 +41,7 @@ const fa: Translation = {
     cv: 'رزومه',
     seaTime: 'سابقه دریانوردی',
     vessels: 'کشتی‌ها',
-    documents: 'مدارک',
+    documentTypes: 'انواع مدارک',
     calendar: 'تقویم',
     reports: 'گزارش‌ها',
     notifications: 'اعلان‌ها',

@@ -77,7 +77,8 @@ export async function deleteSeaTimeRecord(id: string): Promise<void> {
  */
 export async function getSeaTimeSummary(
   contracts: Contract[],
-  rankNames: Map<string, string>
+  rankNames: Map<string, string>,
+  rankOrder?: Map<string, number>
 ): Promise<SeaTimeSummary> {
-  return buildSeaTimeSummary(contracts, rankNames, new Date());
+  return buildSeaTimeSummary(contracts, rankNames, new Date(), rankOrder);
 }

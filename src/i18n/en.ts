@@ -411,6 +411,7 @@ const en = {
     title: 'Reports',
     seaTimeSummary: 'Sea Time Summary',
     contractHistory: 'Contract History',
+    totalEarnings: 'Total contract earnings',
     documentStatus: 'Document Status',
     careerSummary: 'Career Summary',
   },

@@ -265,7 +265,10 @@ export function useSeaTimeSummary() {
     queryFn: async () => {
       const [contracts, ranks] = await Promise.all([VesselsRepo.listContracts(), RanksRepo.listRanks()]);
       const rankNames = new Map(ranks.map((r) => [r.id, r.name]));
-      return SeaTimeRepo.getSeaTimeSummary(contracts, rankNames);
+      // listRanks is ordered by department → level → name, so the array index is
+      // the seniority order (senior first). byRank then follows the hierarchy.
+      const rankOrder = new Map(ranks.map((r, i) => [r.id, i]));
+      return SeaTimeRepo.getSeaTimeSummary(contracts, rankNames, rankOrder);
     },
   });
 }

@@ -71,7 +71,10 @@ export interface SeaTimeSummary {
 export function buildSeaTimeSummary(
   contracts: Contract[],
   rankNames: Map<string, string>,
-  now: Date = new Date()
+  now: Date = new Date(),
+  /** rankId → seniority index (senior first). When given, byRank follows the rank
+   *  hierarchy; otherwise it falls back to most-days-first. */
+  rankOrder?: Map<string, number>
 ): SeaTimeSummary {
   const buckets = new Map<string | null, SeaTimeAmount>();
   const push = (rankId: string | null, amount: SeaTimeAmount) => {
@@ -83,13 +86,21 @@ export function buildSeaTimeSummary(
     push(contract.rankId || null, seaTimeForContract(contract, now));
   }
 
+  const orderOf = (rankId: string | null): number => {
+    if (!rankId) return Number.MAX_SAFE_INTEGER; // unranked always last
+    return rankOrder?.get(rankId) ?? Number.MAX_SAFE_INTEGER - 1;
+  };
+
   const byRank: SeaTimeByRank[] = [...buckets.entries()]
     .map(([key, amount]) => {
       const rankId = key === '_none' ? null : key;
       const rankName = rankId ? (rankNames.get(rankId) ?? rankId) : 'Unranked';
       return { rankId, rankName, days: amount.days, hours: amount.hours };
     })
-    .sort((a, b) => b.days - a.days);
+    .sort((a, b) => {
+      const byRankOrder = orderOf(a.rankId) - orderOf(b.rankId);
+      return byRankOrder !== 0 ? byRankOrder : b.days - a.days;
+    });
 
   return { total: sum([...buckets.values()]), byRank };
 }

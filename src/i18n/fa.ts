@@ -413,6 +413,7 @@ const fa: Translation = {
     title: 'گزارش‌ها',
     seaTimeSummary: 'خلاصه سابقه دریانوردی',
     contractHistory: 'سابقه قراردادها',
+    totalEarnings: 'جمع کل دریافتی قراردادها',
     documentStatus: 'وضعیت مدارک',
     careerSummary: 'خلاصه مسیر شغلی',
   },

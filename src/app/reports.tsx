@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge, Card, FieldRow } from '@/components/ui/primitives';
 import { useContracts, useDocuments, useProfile, useRanks, useSeaTimeSummary } from '@/hooks/queries';
 import { contractCountdown } from '@/domain/contract';
+import { contractFinance, formatMoney } from '@/domain/contract-finance';
 import { promotionDaysFromMonths } from '@/domain/career';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { useTheme } from '@/hooks/use-theme';
@@ -24,6 +25,11 @@ export default function ReportsScreen() {
   const rankName = (id: string | null) => ranks?.find((r) => r.id === id)?.name ?? '—';
   const currentRank = ranks?.find((r) => r.id === profile?.currentRankId) ?? null;
   const required = promotionDaysFromMonths(currentRank?.promotionMonths ?? null);
+
+  // Per-contract earnings (wage + travel + bonus) and their grand total.
+  const finances = (contracts ?? []).map((c) => ({ c, fin: contractFinance(c) }));
+  const grandTotal = finances.reduce((sum, x) => sum + x.fin.totalWithTravel, 0);
+  const grandCurrency = finances.find((x) => x.fin.hasWage)?.fin.currency ?? 'USD';
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.container, { paddingBottom: Spacing.xxl + insets.bottom }]} style={{ backgroundColor: colors.background }}>
@@ -53,17 +59,34 @@ export default function ReportsScreen() {
 
       <Card>
         <Text style={[styles.title, { color: colors.text }]}>{t('reports.contractHistory')}</Text>
-        {(contracts ?? []).map((c) => {
+        {finances.map(({ c, fin }) => {
           const cd = contractCountdown(c);
           return (
             <View key={c.id} style={styles.contractRow}>
-              <Text style={{ color: colors.text, fontWeight: '600' }}>{c.vesselName ?? '—'}</Text>
+              <View style={styles.contractHead}>
+                <Text style={{ color: colors.text, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                  {c.vesselName ?? '—'}
+                </Text>
+                {fin.hasWage ? (
+                  <Text style={{ color: colors.primary, fontWeight: '700' }}>
+                    {formatMoney(fin.totalWithTravel, fin.currency)}
+                  </Text>
+                ) : null}
+              </View>
               <Text style={{ color: colors.textMuted, fontSize: 13 }}>
                 {formatDate(c.joinDate)} → {formatDate(c.actualSignOff ?? c.expectedSignOff)} · {cd.totalDays} {t('common.days')}
               </Text>
             </View>
           );
         })}
+        {grandTotal > 0 ? (
+          <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
+            <Text style={{ color: colors.text, fontWeight: '700' }}>{t('reports.totalEarnings')}</Text>
+            <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 16 }}>
+              {formatMoney(grandTotal, grandCurrency)}
+            </Text>
+          </View>
+        ) : null}
       </Card>
 
       <Card>
@@ -85,5 +108,14 @@ const styles = StyleSheet.create({
   container: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xxl },
   title: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
   contractRow: { paddingVertical: 6, gap: 2 },
+  contractHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+  },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
 });

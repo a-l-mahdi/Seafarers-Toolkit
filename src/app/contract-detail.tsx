@@ -181,9 +181,6 @@ function ContractBody({ contract }: { contract: ContractListRow }) {
         </Text>
       </View>
 
-      {/* Contract documents (contract copy / sea service report / final wages) */}
-      <ContractDocsCard contractId={contract.id} />
-
       {/* Progress bars */}
       <Card>
         <Text style={[styles.section, { color: colors.text }]}>{t('contractDetail.progress')}</Text>
@@ -291,6 +288,9 @@ function ContractBody({ contract }: { contract: ContractListRow }) {
           ) : null}
         </Card>
       ) : null}
+
+      {/* Contract documents (contract copy / sea service report / final wages) */}
+      <ContractDocsCard contractId={contract.id} />
     </ScrollView>
   );
 }

@@ -4,7 +4,9 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Card, EmptyState } from '@/components/ui/primitives';
 import { DatePickerField } from '@/components/ui/date-picker';
-import { useContracts, useLeaveSettings } from '@/hooks/queries';
+import { FileGallery, type DisplayFile } from '@/components/file-gallery';
+import { useContracts, useLeaveSettings, useTripFiles } from '@/hooks/queries';
+import type { TripFileKind } from '@/database/repositories/trip-files-repository';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { contractCountdown, contractProgressColor } from '@/domain/contract';
 import { contractFinance, projectSignOff, formatMoney } from '@/domain/contract-finance';
@@ -70,6 +72,43 @@ function Bar({
         <View style={[styles.fill, { width: `${Math.round(Math.min(Math.max(fraction, 0), 1) * 100)}%`, backgroundColor: color }]} />
       </View>
     </View>
+  );
+}
+
+/** Read-only card showing every document attached to this contract, grouped by
+ *  kind (contract copy / sea service report / final wages), as large tiles. */
+function ContractDocsCard({ contractId }: { contractId: string }) {
+  const { t } = useTranslation();
+  const colors = useTheme();
+  const { data: files } = useTripFiles({ contractId });
+
+  const groups: { kind: TripFileKind; label: string }[] = [
+    { kind: 'contract', label: t('tripFiles.contract') },
+    { kind: 'sea_service_report', label: t('tripFiles.seaServiceReport') },
+    { kind: 'final_wages', label: t('tripFiles.finalWages') },
+    { kind: 'other', label: t('tripFiles.open') },
+  ];
+  const toDisplay = (kind: TripFileKind): DisplayFile[] =>
+    (files ?? [])
+      .filter((f) => f.kind === kind)
+      .map((f) => ({ id: f.id, uri: f.localPath, name: f.fileName }));
+
+  if ((files ?? []).length === 0) return null;
+
+  return (
+    <Card>
+      <Text style={[styles.section, { color: colors.text }]}>{t('contractDetail.documents')}</Text>
+      {groups.map((g) => {
+        const display = toDisplay(g.kind);
+        if (display.length === 0) return null;
+        return (
+          <View key={g.kind} style={styles.docGroup}>
+            <Text style={[styles.docGroupTitle, { color: colors.textMuted }]}>{g.label}</Text>
+            <FileGallery files={display} large />
+          </View>
+        );
+      })}
+    </Card>
   );
 }
 
@@ -141,6 +180,9 @@ function ContractBody({ contract }: { contract: ContractListRow }) {
           {formatDate(contract.joinDate)} → {formatDate(endDate)}
         </Text>
       </View>
+
+      {/* Contract documents (contract copy / sea service report / final wages) */}
+      <ContractDocsCard contractId={contract.id} />
 
       {/* Progress bars */}
       <Card>
@@ -263,6 +305,8 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 12, fontWeight: '700' },
   headerDates: { fontSize: 13, opacity: 0.95, marginTop: 2 },
   section: { fontSize: 15, fontWeight: '700', marginBottom: Spacing.sm },
+  docGroup: { marginBottom: Spacing.md, gap: Spacing.xs },
+  docGroupTitle: { fontSize: 13, fontWeight: '600' },
   barBlock: { marginBottom: Spacing.md },
   barHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   barLabel: { fontSize: 14, fontWeight: '600' },

@@ -299,6 +299,7 @@ const fa: Translation = {
     },
   },
   contractDetail: {
+    documents: 'اسناد قرارداد',
     progress: 'پیشرفت قرارداد',
     onboard: 'روزهای حضور در کشتی',
     leave: 'مرخصی تا امروز',

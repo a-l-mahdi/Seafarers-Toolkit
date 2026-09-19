@@ -297,6 +297,7 @@ const en = {
     },
   },
   contractDetail: {
+    documents: 'Contract documents',
     progress: 'Contract progress',
     onboard: 'Days onboard',
     leave: 'Leave to date',

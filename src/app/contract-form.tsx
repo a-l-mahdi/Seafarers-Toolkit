@@ -69,6 +69,13 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
   const [months, setMonths] = useState(String(storedDuration?.months ?? 4));
   const [customEndDate, setCustomEndDate] = useState(storedDuration?.customEndDate ?? '');
   const [actualSignOff, setActualSignOff] = useState(initial?.actualSignOff ?? '');
+  const [monthlyWage, setMonthlyWage] = useState(
+    initial?.monthlyWage != null ? String(initial.monthlyWage) : ''
+  );
+  const [wageCurrency, setWageCurrency] = useState(initial?.wageCurrency ?? 'USD');
+  const [travelDays, setTravelDays] = useState(
+    initial?.travelDays != null ? String(initial.travelDays) : ''
+  );
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [pending, setPending] = useState<DisplayFile[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
@@ -155,6 +162,9 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
           months: duration.months ?? null,
           customEndDate: duration.customEndDate ?? null,
         }),
+        monthlyWage: parseFloat(monthlyWage) || null,
+        wageCurrency: wageCurrency.trim() || null,
+        travelDays: parseInt(travelDays, 10) || null,
         status: isISODate(actualSignOff) ? 'completed' : 'active',
         notes: notes.trim() || null,
       });
@@ -263,6 +273,27 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
           value={actualSignOff}
           onChange={setActualSignOff}
         />
+        <LabeledInput
+          label={t('contracts.monthlyWage')}
+          value={monthlyWage}
+          onChangeText={setMonthlyWage}
+          keyboardType="numeric"
+        />
+        <LabeledInput
+          label={t('contracts.currency')}
+          value={wageCurrency}
+          onChangeText={setWageCurrency}
+          placeholder="USD"
+        />
+        <LabeledInput
+          label={t('contracts.travelDays')}
+          value={travelDays}
+          onChangeText={setTravelDays}
+          keyboardType="numeric"
+        />
+        <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: -Spacing.sm, marginBottom: Spacing.md }}>
+          {t('contracts.travelDaysHint')}
+        </Text>
         <LabeledInput label={t('contracts.notes')} value={notes} onChangeText={setNotes} multiline />
         {contractId ? (
           <ContractFilesSection contractId={contractId} />

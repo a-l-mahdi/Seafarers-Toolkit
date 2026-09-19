@@ -56,6 +56,10 @@ CREATE TABLE IF NOT EXISTS contracts (
   expected_sign_off TEXT NOT NULL,
   actual_sign_off TEXT,
   duration_days INTEGER,
+  duration_json TEXT,
+  monthly_wage REAL,
+  wage_currency TEXT,
+  travel_days INTEGER,
   status TEXT NOT NULL DEFAULT 'planned',
   notes TEXT,
   created_at TEXT NOT NULL,
@@ -192,6 +196,17 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
     // Stores the exact duration input (mode/days/months/custom date) so editing
     // a contract keeps its duration instead of resetting it to form defaults.
     await db.execAsync('ALTER TABLE contracts ADD COLUMN duration_json TEXT');
+  }
+  // Wage per contract: monthly wage, currency, and extra paid travel days used to
+  // compute earnings and the repatriation allowance on the contract summary.
+  if (!contractNames.has('monthly_wage')) {
+    await db.execAsync('ALTER TABLE contracts ADD COLUMN monthly_wage REAL');
+  }
+  if (!contractNames.has('wage_currency')) {
+    await db.execAsync('ALTER TABLE contracts ADD COLUMN wage_currency TEXT');
+  }
+  if (!contractNames.has('travel_days')) {
+    await db.execAsync('ALTER TABLE contracts ADD COLUMN travel_days INTEGER');
   }
   // Contact fields on the profile (address block + landline) — used by the CV.
   const profileCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(profile)');

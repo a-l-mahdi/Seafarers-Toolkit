@@ -57,7 +57,7 @@ export function ContractCard({
   };
 
   return (
-    <Link href={`/contract-form?id=${item.id}`} asChild>
+    <Link href={`/contract-detail?id=${item.id}`} asChild>
       <Pressable style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.row}>
           {/* ===== 1. Rank-color strip (full height) ===== */}

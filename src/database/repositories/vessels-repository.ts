@@ -91,6 +91,9 @@ function mapContract(row: Record<string, unknown>): Contract {
     actualSignOff: (row.actual_sign_off as string) ?? null,
     durationDays: (row.duration_days as number) ?? null,
     durationJson: (row.duration_json as string) ?? null,
+    monthlyWage: (row.monthly_wage as number) ?? null,
+    wageCurrency: (row.wage_currency as string) ?? null,
+    travelDays: (row.travel_days as number) ?? null,
     status: (row.status as Contract['status']) ?? 'planned',
     notes: (row.notes as string) ?? null,
     createdAt: String(row.created_at),
@@ -153,12 +156,14 @@ export async function saveContract(
     : null;
   await db.runAsync(
     `INSERT INTO contracts (id, vessel_id, rank_id, join_date, expected_sign_off, actual_sign_off,
-       duration_days, duration_json, status, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       duration_days, duration_json, monthly_wage, wage_currency, travel_days, status, notes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        vessel_id = excluded.vessel_id, rank_id = excluded.rank_id, join_date = excluded.join_date,
        expected_sign_off = excluded.expected_sign_off, actual_sign_off = excluded.actual_sign_off,
        duration_days = excluded.duration_days, duration_json = excluded.duration_json,
+       monthly_wage = excluded.monthly_wage, wage_currency = excluded.wage_currency,
+       travel_days = excluded.travel_days,
        status = excluded.status, notes = excluded.notes,
        updated_at = excluded.updated_at`,
     id,
@@ -169,6 +174,9 @@ export async function saveContract(
     input.actualSignOff,
     input.durationDays,
     input.durationJson ?? null,
+    input.monthlyWage ?? null,
+    input.wageCurrency ?? null,
+    input.travelDays ?? null,
     input.status,
     input.notes,
     existing?.created_at ?? now,

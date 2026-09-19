@@ -92,6 +92,12 @@ export interface Contract {
   durationDays: number | null;
   /** Serialized duration input (mode/days/months/custom date) so edits preserve the duration. */
   durationJson?: string | null;
+  /** Agreed monthly wage for this contract (per calendar month). */
+  monthlyWage: number | null;
+  /** Currency code shown alongside amounts (e.g. USD). */
+  wageCurrency: string | null;
+  /** Extra paid days on top of the contract (repatriation / travel allowance). */
+  travelDays: number | null;
   status: ContractStatus;
   notes: string | null;
   createdAt: string;

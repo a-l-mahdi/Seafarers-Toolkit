@@ -12,18 +12,16 @@ import {
   Modal,
   Pressable,
   StyleSheet,
-  Text,
-  TextInput,
   View,
   type ScrollView as RNScrollView,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { Text, TextInput } from '@/components/ui/text';
 // Gesture-handler's ScrollView arbitrates touches natively, so a drag that
 // starts on a TextInput scrolls the page (and only a tap focuses the field).
 import { ScrollView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Spacing } from '@/constants/theme';
 
@@ -57,13 +55,18 @@ export function FormScrollView({
         scrollView.scrollTo({ y: Math.max(y - 110, 0), animated: true });
         void h;
       },
-      () => undefined
+      () => undefined,
     );
   };
 
   return (
     <ScrollToInputContext.Provider value={{ scrollToInput }}>
-      <ScrollView showsVerticalScrollIndicator={false} ref={scrollRef} {...rest} contentContainerStyle={contentContainerStyle}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        ref={scrollRef}
+        {...rest}
+        contentContainerStyle={contentContainerStyle}
+      >
         {children}
       </ScrollView>
     </ScrollToInputContext.Provider>
@@ -79,15 +82,18 @@ export function LabeledInput({
   multiline,
   secureTextEntry,
   error,
+  ltr,
 }: {
   label: string;
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
-  keyboardType?: 'default' | 'numeric' | 'email-address' | 'phone-pad';
+  keyboardType?: 'default' | 'numeric' | 'email-address' | 'phone-pad' | 'url';
   multiline?: boolean;
   secureTextEntry?: boolean;
   error?: string | null;
+  /** Left-to-right text (links, codes) even in Persian. */
+  ltr?: boolean;
 }) {
   const colors = useTheme();
   const inputRef = useRef<TextInput>(null);
@@ -110,7 +116,8 @@ export function LabeledInput({
       >
         <TextInput
           ref={inputRef}
-          style={[styles.inputInner, { color: colors.text }]}
+          style={[styles.inputInner, { color: colors.text }, ltr && { textAlign: 'left', writingDirection: 'ltr' }]}
+          autoCorrect={ltr ? false : undefined}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -129,19 +136,10 @@ export function LabeledInput({
         {/* While the field isn't focused, a transparent Pressable covers it: a tap
             focuses the field, but a drag is released to the ScrollView so the page
             scrolls (a TextInput would swallow the drag on Android — RNGH #3520). */}
-        {!focused ? (
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => inputRef.current?.focus()}
-          />
-        ) : null}
+        {!focused ? <Pressable style={StyleSheet.absoluteFill} onPress={() => inputRef.current?.focus()} /> : null}
         {isPassword ? (
           <Pressable onPress={() => setReveal((r) => !r)} hitSlop={8} style={styles.eyeBtn}>
-            <Ionicons
-              name={reveal ? 'eye-outline' : 'eye-off-outline'}
-              size={20}
-              color={colors.textMuted}
-            />
+            <Ionicons name={reveal ? 'eye-outline' : 'eye-off-outline'} size={20} color={colors.textMuted} />
           </Pressable>
         ) : null}
       </View>
@@ -184,9 +182,12 @@ export function Select({
         </Text>
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={[styles.modalBackdrop, { backgroundColor: '#00000080' }]} onPress={() => setOpen(false)}>
+        <View style={[styles.modalBackdrop, { backgroundColor: '#00000080' }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} />
           <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
-            <FlatList showsVerticalScrollIndicator={false} nestedScrollEnabled
+            <FlatList
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
               data={options}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
@@ -205,7 +206,7 @@ export function Select({
               <Text style={{ color: colors.danger, fontSize: 15, fontWeight: '600' }}>✕</Text>
             </Pressable>
           </View>
-        </Pressable>
+        </View>
       </Modal>
     </View>
   );
@@ -236,36 +237,6 @@ export function Checkbox({
       </View>
       <Text style={{ color: colors.text, fontSize: 15 }}>{label}</Text>
     </Pressable>
-  );
-}
-
-export function HeaderBar({
-  title,
-  onBack,
-  action,
-}: {
-  title: string;
-  onBack?: () => void;
-  action?: { label: string; onPress: () => void };
-}) {
-  const colors = useTheme();
-  const insets = useSafeAreaInsets();
-  return (
-    <View style={[styles.header, { paddingTop: Spacing.md + insets.top }]}>
-      {onBack ? (
-        <Pressable onPress={onBack} hitSlop={12}>
-          <Text style={[styles.back, { color: colors.primary }]}>‹</Text>
-        </Pressable>
-      ) : null}
-      <Text style={[styles.headerTitle, { color: colors.text }]}>{title}</Text>
-      {action ? (
-        <Pressable onPress={action.onPress} hitSlop={12}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>{action.label}</Text>
-        </Pressable>
-      ) : (
-        <View style={{ width: 24 }} />
-      )}
-    </View>
   );
 }
 
@@ -301,16 +272,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
   },
   option: { padding: Spacing.lg, borderBottomWidth: StyleSheet.hairlineWidth },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-    gap: Spacing.sm,
-  },
-  headerTitle: { fontSize: 17, fontWeight: '700', flex: 1, textAlign: 'center' },
-  back: { fontSize: 28, fontWeight: '600', width: 24 },
   checkbox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginVertical: Spacing.sm },
   checkboxBox: {
     width: 22,

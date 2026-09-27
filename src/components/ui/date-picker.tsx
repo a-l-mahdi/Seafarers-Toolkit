@@ -1,12 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '@/store/settings-store';
 import {
@@ -128,12 +122,10 @@ export function DatePickerModal({
       isJalali
         ? JALALI_MONTHS.map((name, i) => ({ value: i + 1, label: name }))
         : GREGORIAN_MONTHS.map((name, i) => ({ value: i + 1, label: name })),
-    [isJalali]
+    [isJalali],
   );
 
-  const maxDay = isJalali
-    ? jalaliDaysInMonth(state.year, state.month)
-    : daysInMonth(state.year, state.month);
+  const maxDay = isJalali ? jalaliDaysInMonth(state.year, state.month) : daysInMonth(state.year, state.month);
   const days: { value: number; label: string }[] = [];
   for (let d = 1; d <= maxDay; d += 1) days.push({ value: d, label: String(d) });
 
@@ -156,8 +148,9 @@ export function DatePickerModal({
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { backgroundColor: colors.surface }]} onPress={() => undefined}>
+      <View style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
           <Text style={[styles.title, { color: colors.text }]}>
             {isJalali ? t('settings.jalali') : t('settings.gregorian')}
           </Text>
@@ -195,8 +188,8 @@ export function DatePickerModal({
               <Text style={{ color: colors.onPrimary, fontWeight: '600' }}>{t('common.confirm')}</Text>
             </Pressable>
           </View>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -231,43 +224,79 @@ export function MonthYearPickerModal({
       isJalali
         ? JALALI_MONTHS.map((name, i) => ({ value: i + 1, label: name }))
         : GREGORIAN_MONTHS.map((name, i) => ({ value: i + 1, label: name })),
-    [isJalali]
+    [isJalali],
   );
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { backgroundColor: colors.surface }]} onPress={() => undefined}>
+      <View style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
           <Text style={[styles.title, { color: colors.text }]}>
             {isJalali ? t('settings.jalali') : t('settings.gregorian')}
           </Text>
           <View style={styles.row}>
-            <WheelColumn
-              label={isJalali ? t('common.month') : 'Month'}
-              options={months}
-              selected={m}
-              onSelect={setM}
-            />
-            <WheelColumn
-              label={isJalali ? t('common.year') : 'Year'}
-              options={years}
-              selected={y}
-              onSelect={setY}
-            />
+            <WheelColumn label={isJalali ? t('common.month') : 'Month'} options={months} selected={m} onSelect={setM} />
+            <WheelColumn label={isJalali ? t('common.year') : 'Year'} options={years} selected={y} onSelect={setY} />
+          </View>
+          <View style={styles.actions}>
+            <Pressable onPress={onClose} style={[styles.actionBtn, { backgroundColor: colors.surfaceMuted }]}>
+              <Text style={{ color: colors.danger }}>{t('common.cancel')}</Text>
+            </Pressable>
+            <Pressable onPress={() => onConfirm(y, m)} style={[styles.actionBtn, { backgroundColor: colors.primary }]}>
+              <Text style={{ color: colors.onPrimary, fontWeight: '600' }}>{t('common.confirm')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const HOURS = Array.from({ length: 24 }, (_, i) => ({ value: i, label: String(i).padStart(2, '0') }));
+const MINUTES = Array.from({ length: 60 }, (_, i) => ({ value: i, label: String(i).padStart(2, '0') }));
+
+/** Hour + minute picker (24-hour, same wheel style as the date picker). `value` is HH:MM. */
+export function TimePickerModal({
+  value,
+  onClose,
+  onConfirm,
+}: {
+  value: string;
+  onClose: () => void;
+  onConfirm: (time: string) => void;
+}) {
+  const { t } = useTranslation();
+  const colors = useTheme();
+  const [h0, m0] = /^\d{2}:\d{2}$/.test(value) ? value.split(':').map(Number) : [9, 0];
+  const [h, setH] = useState(h0);
+  const [m, setM] = useState(m0);
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.title, { color: colors.primary, fontSize: 28 }]}>{`${pad2(h)}:${pad2(m)}`}</Text>
+          {/* Hours stay on the left in both languages, as on a clock. */}
+          <View style={[styles.row, { direction: 'ltr' }]}>
+            <WheelColumn label={t('common.hour')} options={HOURS} selected={h} onSelect={setH} />
+            <WheelColumn label={t('common.minute')} options={MINUTES} selected={m} onSelect={setM} />
           </View>
           <View style={styles.actions}>
             <Pressable onPress={onClose} style={[styles.actionBtn, { backgroundColor: colors.surfaceMuted }]}>
               <Text style={{ color: colors.danger }}>{t('common.cancel')}</Text>
             </Pressable>
             <Pressable
-              onPress={() => onConfirm(y, m)}
+              onPress={() => onConfirm(`${pad2(h)}:${pad2(m)}`)}
               style={[styles.actionBtn, { backgroundColor: colors.primary }]}
             >
               <Text style={{ color: colors.onPrimary, fontWeight: '600' }}>{t('common.confirm')}</Text>
             </Pressable>
           </View>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -287,7 +316,7 @@ function WheelColumn({
   const scrollRef = useRef<ScrollView>(null);
   const index = Math.max(
     options.findIndex((o) => o.value === selected),
-    0
+    0,
   );
 
   // Keep the selected item centered in the wheel.

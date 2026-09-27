@@ -1,4 +1,4 @@
-import { contractCountdown, contractProgressColor, contractRangesOverlap, expectedSignOff, lerpColor, validateContract } from '../contract';
+import { contractCountdown, contractPhase, contractProgressColor, daysUntilStart, contractRangesOverlap, expectedSignOff, lerpColor, validateContract } from '../contract';
 import { seaTimeForContract, sum } from '../sea-time';
 import type { Contract } from '@/types/domain';
 
@@ -25,8 +25,11 @@ describe('expected sign off', () => {
     expect(expectedSignOff('2026-09-01', { mode: 'days', days: 90 })).toBe('2026-11-30');
   });
 
-  it('adds months', () => {
-    expect(expectedSignOff('2026-09-01', { mode: 'months', months: 6 })).toBe('2027-03-01');
+  it('counts a month as exactly 30 days', () => {
+    expect(expectedSignOff('2026-09-01', { mode: 'months', months: 6 })).toBe('2027-02-28');
+    const join = '2026-10-26';
+    const end = expectedSignOff(join, { mode: 'months', months: 4 })!;
+    expect(contractCountdown({ ...baseContract, joinDate: join, expectedSignOff: end }).totalDays).toBe(120);
   });
 
   it('uses custom end date only if after join', () => {
@@ -48,6 +51,26 @@ describe('contract countdown', () => {
     const c = contractCountdown(baseContract, new Date('2027-06-01T10:00:00Z'));
     expect(c.remainingDays).toBe(0);
     expect(c.ended).toBe(true);
+  });
+});
+
+describe('upcoming contracts', () => {
+  const upcoming = { ...baseContract, joinDate: '2026-10-26', expectedSignOff: '2027-02-23' };
+  const now = new Date('2026-09-26T10:00:00');
+
+  it('is upcoming before the join date, active from it, completed when signed off', () => {
+    expect(contractPhase(upcoming, now)).toBe('upcoming');
+    expect(contractPhase(upcoming, new Date('2026-10-26T08:00:00'))).toBe('active');
+    expect(contractPhase({ ...upcoming, actualSignOff: '2027-02-20' }, now)).toBe('completed');
+  });
+
+  it('counts down to the start and earns nothing yet', () => {
+    expect(daysUntilStart(upcoming, now)).toBe(30);
+    const cd = contractCountdown(upcoming, now);
+    expect(cd.totalDays).toBe(120);
+    expect(cd.elapsedDays).toBe(0);
+    expect(cd.remainingDays).toBe(120);
+    expect(seaTimeForContract(upcoming, now)).toEqual({ days: 0, hours: 0 });
   });
 });
 

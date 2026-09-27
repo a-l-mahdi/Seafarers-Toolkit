@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Image } from 'expo-image';
 import * as Sharing from 'expo-sharing';
-import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { DockDivider, FitImage, ViewerAction, ZoomViewer } from '@/components/zoom-viewer';
+import { Text } from '@/components/ui/text';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Spacing } from '@/constants/theme';
@@ -75,10 +77,7 @@ export function FileGallery({
           <Text style={{ color: colors.text, flex: 1, marginHorizontal: Spacing.sm }} numberOfLines={1}>
             {file.name}
           </Text>
-          <Pressable
-            onPress={() => void shareFile(file.uri, file.name)}
-            style={styles.pdfAction}
-          >
+          <Pressable onPress={() => void shareFile(file.uri, file.name)} style={styles.pdfAction}>
             <Text style={{ color: colors.primary }}>⤴</Text>
           </Pressable>
           {onRemove ? (
@@ -88,59 +87,75 @@ export function FileGallery({
           ) : null}
         </View>
       ))}
-      <ViewerModal file={viewerUri} onClose={() => setViewerUri(null)} onRemove={onRemove} />
+      <ViewerModal file={viewerUri} files={images} onClose={() => setViewerUri(null)} onRemove={onRemove} />
     </View>
   );
 }
 
-function ViewerModal({
+/**
+ * Full-screen photo viewer (zoom, swipe between `files`) with Share / Delete.
+ * `file` is the photo it opens on; `null` keeps it closed.
+ */
+export function ViewerModal({
   file,
+  files,
   onClose,
   onRemove,
+  onIndexChange,
 }: {
   file: DisplayFile | null;
+  /** The photos to swipe through; just `file` when omitted. */
+  files?: DisplayFile[];
   onClose: () => void;
   onRemove?: (id: string, uri: string) => void;
+  onIndexChange?: (file: DisplayFile) => void;
 }) {
   const { t } = useTranslation();
+  if (!file) return null;
+  const list = files?.some((f) => f.id === file.id) ? files : [file];
 
-  const doRemove = () => {
-    if (file && onRemove) {
-      onRemove(file.id, file.uri);
-    }
-    onClose();
+  const doRemove = (target: DisplayFile) => {
+    if (!onRemove) return;
+    Alert.alert(t('common.delete'), target.name, [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.delete'),
+        style: 'destructive',
+        onPress: () => {
+          onRemove(target.id, target.uri);
+          onClose();
+        },
+      },
+    ]);
   };
 
   return (
-    <Modal visible={!!file} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.viewerBackdrop}>
-        <View style={styles.viewerTop}>
-          <Text style={{ color: '#FFFFFF', flex: 1, marginHorizontal: Spacing.md }} numberOfLines={1}>
-            {file?.name ?? ''}
-          </Text>
-          <Pressable style={styles.viewerBtn} onPress={() => file && void shareFile(file.uri, file.name)}>
-            <IoniconsShare />
-          </Pressable>
+    <ZoomViewer
+      items={list}
+      initialIndex={list.findIndex((f) => f.id === file.id)}
+      keyOf={(f) => f.id}
+      renderItem={(f, box) => <FitImage uri={f.uri} box={box} />}
+      title={(i) => list[i].name}
+      onIndexChange={(i) => onIndexChange?.(list[i])}
+      onClose={onClose}
+      actions={(i) => (
+        <>
+          <ViewerAction
+            icon="share-social"
+            label={t('common.share')}
+            tint="#2F80ED"
+            onPress={() => void shareFile(list[i].uri, list[i].name)}
+          />
           {onRemove ? (
-            <Pressable style={styles.viewerBtn} onPress={doRemove}>
-              <Text style={{ color: '#FF8A7A', fontSize: 20 }}>🗑</Text>
-            </Pressable>
+            <>
+              <DockDivider />
+              <ViewerAction icon="trash" label={t('common.delete')} tint="#FF4D5E" onPress={() => doRemove(list[i])} />
+            </>
           ) : null}
-          <Pressable style={styles.viewerBtn} onPress={onClose}>
-            <Text style={{ color: '#FFFFFF', fontSize: 22 }}>✕</Text>
-          </Pressable>
-        </View>
-        {file ? <Image source={{ uri: file.uri }} style={styles.viewerImage} contentFit="contain" /> : null}
-        <Text style={{ color: '#FFFFFFAA', fontSize: 12, textAlign: 'center', paddingBottom: Spacing.xl }}>
-          {t('common.share')}
-        </Text>
-      </View>
-    </Modal>
+        </>
+      )}
+    />
   );
-}
-
-function IoniconsShare() {
-  return <Text style={{ color: '#FFFFFF', fontSize: 20 }}>⤴</Text>;
 }
 
 export async function shareFile(uri: string, fileName: string): Promise<void> {
@@ -182,15 +197,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   pdfAction: { paddingHorizontal: Spacing.sm },
-  viewerBackdrop: { flex: 1, backgroundColor: '#000000EE', paddingTop: Spacing.xl },
-  viewerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-    gap: Spacing.sm,
-  },
-  viewerBtn: { padding: Spacing.sm },
-  viewerImage: { flex: 1, width: '100%' },
 });

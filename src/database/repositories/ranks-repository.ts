@@ -1,5 +1,7 @@
 import { openDatabase } from '../db';
 import type { LeaveSettings, NotificationPreference, Rank } from '@/types/domain';
+import { parseInsignia, serializeInsignia, type Insignia } from '@/domain/insignia';
+import { DEFAULT_DOCUMENT_SORT, type DocumentSort } from '@/domain/document-sort';
 import { isoNow } from '@/utils/date';
 import { newId } from '@/utils/id';
 
@@ -15,6 +17,7 @@ export async function listRanks(): Promise<Rank[]> {
     level: number;
     promotion_months: number | null;
     is_default: number;
+    insignia: string | null;
   }>('SELECT * FROM ranks ORDER BY department, level, name');
   return rows.map((r) => ({
     id: r.id,
@@ -23,6 +26,7 @@ export async function listRanks(): Promise<Rank[]> {
     level: r.level,
     promotionMonths: (r.promotion_months as number | null) ?? null,
     isDefault: !!r.is_default,
+    insignia: parseInsignia(r.insignia),
   }));
 }
 
@@ -30,17 +34,18 @@ export async function createRank(
   department: Rank['department'],
   name: string,
   level: number,
-  promotionMonths: number | null = 12
+  promotionMonths: number | null = 12,
 ): Promise<Rank> {
   const db = await openDatabase();
-  const rank: Rank = { id: newId(), department, name, level, promotionMonths, isDefault: false };
+  // New ranks start without an epaulette; the user can add one.
+  const rank: Rank = { id: newId(), department, name, level, promotionMonths, isDefault: false, insignia: null };
   await db.runAsync(
-    'INSERT INTO ranks (id, department, name, level, promotion_months, is_default) VALUES (?, ?, ?, ?, ?, 0)',
+    "INSERT INTO ranks (id, department, name, level, promotion_months, is_default, insignia) VALUES (?, ?, ?, ?, ?, 0, 'none')",
     rank.id,
     department,
     name,
     level,
-    rank.promotionMonths
+    rank.promotionMonths,
   );
   return rank;
 }
@@ -53,8 +58,14 @@ export async function updateRank(rank: Rank): Promise<void> {
     rank.name,
     rank.level,
     rank.promotionMonths,
-    rank.id
+    rank.id,
   );
+}
+
+/** Sets a rank's epaulette (null = none). */
+export async function updateRankInsignia(id: string, insignia: Insignia | null): Promise<void> {
+  const db = await openDatabase();
+  await db.runAsync('UPDATE ranks SET insignia = ? WHERE id = ?', serializeInsignia(insignia), id);
 }
 
 /** Moves a rank up/down within its department by swapping levels with the neighbour. */
@@ -68,7 +79,7 @@ export async function moveRank(id: string, dir: -1 | 1): Promise<void> {
   if (!rank) return;
   const neighbours = await db.getAllAsync<{ id: string; level: number }>(
     'SELECT id, level FROM ranks WHERE department = ? ORDER BY level, name',
-    rank.department
+    rank.department,
   );
   const idx = neighbours.findIndex((n) => n.id === id);
   const swapIdx = idx + (dir === -1 ? -1 : 1);
@@ -91,7 +102,7 @@ export async function getPromotionDaysFor(rankId: string | null, fallback = 365)
   const db = await openDatabase();
   const row = await db.getFirstAsync<{ promotion_months: number | null }>(
     'SELECT promotion_months FROM ranks WHERE id = ?',
-    rankId
+    rankId,
   );
   const months = row?.promotion_months;
   if (!months || months <= 0) return fallback;
@@ -133,7 +144,7 @@ async function setSetting(key: string, value: unknown): Promise<void> {
   await db.runAsync(
     'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
     key,
-    JSON.stringify(value)
+    JSON.stringify(value),
   );
 }
 
@@ -155,4 +166,36 @@ export async function saveNotificationPrefs(prefs: NotificationPreference): Prom
 
 export async function logAudit(action: string, entityId: string): Promise<void> {
   await setSetting(`audit:${isoNow()}:${newId()}`, { action, entityId });
+}
+
+/** Countries last picked for a field (vessel flag / nationality), newest first. */
+const DOCUMENT_SORT_KEY = 'documents_sort';
+
+/** How the documents list is ordered (sort mode + the user's own order). */
+export async function getDocumentSort(): Promise<DocumentSort> {
+  const saved = await getSetting<Partial<DocumentSort>>(DOCUMENT_SORT_KEY, DEFAULT_DOCUMENT_SORT);
+  return {
+    mode: saved.mode === 'daysDesc' || saved.mode === 'daysAsc' ? saved.mode : 'manual',
+    order: Array.isArray(saved.order) ? saved.order.filter((id) => typeof id === 'string') : [],
+  };
+}
+
+export async function saveDocumentSort(sort: DocumentSort): Promise<void> {
+  await setSetting(DOCUMENT_SORT_KEY, sort);
+}
+
+export type RecentCountryKind = 'flag' | 'nationality';
+const RECENT_COUNTRIES_MAX = 6;
+
+export async function getRecentCountries(kind: RecentCountryKind): Promise<string[]> {
+  const list = await getSetting<unknown>(`recent_countries:${kind}`, []);
+  return Array.isArray(list) ? list.filter((c): c is string => typeof c === 'string') : [];
+}
+
+export async function addRecentCountry(kind: RecentCountryKind, code: string): Promise<void> {
+  const list = await getRecentCountries(kind);
+  await setSetting(
+    `recent_countries:${kind}`,
+    [code, ...list.filter((c) => c !== code)].slice(0, RECENT_COUNTRIES_MAX),
+  );
 }

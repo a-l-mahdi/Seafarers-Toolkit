@@ -84,7 +84,10 @@ export function computeLeaveLedger(
   now: Date = new Date()
 ): LeaveLedger {
   const today = todayISO(now);
-  const sorted = [...contracts].sort((a, b) => (a.joinDate < b.joinDate ? -1 : 1));
+  // A contract that has not started yet earns no leave and uses none.
+  const sorted = [...contracts]
+    .filter((c) => c.joinDate <= today)
+    .sort((a, b) => (a.joinDate < b.joinDate ? -1 : 1));
   const entries: LeaveLedgerEntry[] = [];
   let carried = 0;
   let unusedNow = 0;

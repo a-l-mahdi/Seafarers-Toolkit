@@ -16,6 +16,9 @@ function mapVessel(row: Record<string, unknown>): Vessel {
     owner: (row.owner as string) ?? null,
     managementCompany: (row.management_company as string) ?? null,
     notes: (row.notes as string) ?? null,
+    photoPath: (row.photo_path as string) ?? null,
+    vesselFinderUrl: (row.vesselfinder_url as string) ?? null,
+    marineTrafficUrl: (row.marinetraffic_url as string) ?? null,
     createdAt: String(row.created_at),
   };
 }
@@ -26,7 +29,7 @@ export async function listVessels(search?: string): Promise<Vessel[]> {
     const rows = await db.getAllAsync<Record<string, unknown>>(
       'SELECT * FROM vessels WHERE name LIKE ? OR imo LIKE ? ORDER BY name',
       `%${search}%`,
-      `%${search}%`
+      `%${search}%`,
     );
     return rows.map(mapVessel);
   }
@@ -40,20 +43,21 @@ export async function getVessel(id: string): Promise<Vessel | null> {
   return row ? mapVessel(row) : null;
 }
 
-export async function saveVessel(
-  input: Omit<Vessel, 'id' | 'createdAt'> & { id?: string }
-): Promise<Vessel> {
+export async function saveVessel(input: Omit<Vessel, 'id' | 'createdAt'> & { id?: string }): Promise<Vessel> {
   const db = await openDatabase();
   const id = input.id ?? newId();
-  const createdAt = input.id ? (await getVessel(id))?.createdAt ?? isoNow() : isoNow();
+  const createdAt = input.id ? ((await getVessel(id))?.createdAt ?? isoNow()) : isoNow();
   const vessel: Vessel = { ...input, id, createdAt };
   await db.runAsync(
-    `INSERT INTO vessels (id, name, imo, type, flag, gross_tonnage, net_tonnage, owner, management_company, notes, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO vessels (id, name, imo, type, flag, gross_tonnage, net_tonnage, owner, management_company, notes, photo_path,
+       vesselfinder_url, marinetraffic_url, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name = excluded.name, imo = excluded.imo, type = excluded.type, flag = excluded.flag,
        gross_tonnage = excluded.gross_tonnage, net_tonnage = excluded.net_tonnage,
-       owner = excluded.owner, management_company = excluded.management_company, notes = excluded.notes`,
+       owner = excluded.owner, management_company = excluded.management_company, notes = excluded.notes,
+       photo_path = excluded.photo_path,
+       vesselfinder_url = excluded.vesselfinder_url, marinetraffic_url = excluded.marinetraffic_url`,
     vessel.id,
     vessel.name,
     vessel.imo,
@@ -64,7 +68,10 @@ export async function saveVessel(
     vessel.owner,
     vessel.managementCompany,
     vessel.notes,
-    vessel.createdAt
+    vessel.photoPath ?? null,
+    vessel.vesselFinderUrl ?? null,
+    vessel.marineTrafficUrl ?? null,
+    vessel.createdAt,
   );
   return vessel;
 }
@@ -73,12 +80,16 @@ export async function deleteVessel(id: string): Promise<void> {
   const db = await openDatabase();
   // Deleting a vessel referenced by contracts would trip the FK (contracts
   // have NOT NULL vessel_id). Refuse clearly instead of failing silently.
-  const refs = await db.getFirstAsync<{ c: number }>(
-    'SELECT COUNT(*) AS c FROM contracts WHERE vessel_id = ?',
-    id
-  );
+  const refs = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM contracts WHERE vessel_id = ?', id);
   if ((refs?.c ?? 0) > 0) throw new Error('VESSEL_IN_USE');
+  const photo = await db.getFirstAsync<{ photo_path: string | null }>(
+    'SELECT photo_path FROM vessels WHERE id = ?',
+    id,
+  );
   await db.runAsync('DELETE FROM vessels WHERE id = ?', id);
+  if (photo?.photo_path) {
+    await FileSystem.deleteAsync(photo.photo_path, { idempotent: true }).catch(() => undefined);
+  }
 }
 
 function mapContract(row: Record<string, unknown>): Contract {
@@ -95,6 +106,7 @@ function mapContract(row: Record<string, unknown>): Contract {
     wageCurrency: (row.wage_currency as string) ?? null,
     travelDays: (row.travel_days as number) ?? null,
     bonus: (row.bonus as number) ?? null,
+    company: (row.company as string) ?? null,
     status: (row.status as Contract['status']) ?? 'planned',
     notes: (row.notes as string) ?? null,
     createdAt: String(row.created_at),
@@ -107,14 +119,29 @@ export interface ContractListRow extends Contract {
   rankName: string | null;
 }
 
+/**
+ * A trip whose planned sign-off day has passed without a recorded sign-off
+ * ended on that day: record it as the actual sign-off (the sailor can still
+ * change it later, and the actual date is what every total counts).
+ */
+async function closeFinishedContracts(db: Awaited<ReturnType<typeof openDatabase>>): Promise<void> {
+  await db.runAsync(
+    `UPDATE contracts SET actual_sign_off = expected_sign_off, status = 'completed', updated_at = ?
+     WHERE actual_sign_off IS NULL AND expected_sign_off > join_date
+       AND expected_sign_off < date('now', 'localtime')`,
+    isoNow(),
+  );
+}
+
 export async function listContracts(): Promise<ContractListRow[]> {
   const db = await openDatabase();
+  await closeFinishedContracts(db);
   const rows = await db.getAllAsync<Record<string, unknown>>(
     `SELECT c.*, v.name AS vessel_name, r.name AS rank_name
      FROM contracts c
      LEFT JOIN vessels v ON v.id = c.vessel_id
      LEFT JOIN ranks r ON r.id = c.rank_id
-     ORDER BY c.join_date DESC, c.created_at DESC`
+     ORDER BY c.join_date DESC, c.created_at DESC`,
   );
   return rows.map((row) => ({
     ...mapContract(row),
@@ -125,15 +152,16 @@ export async function listContracts(): Promise<ContractListRow[]> {
 
 export async function getActiveContract(): Promise<Contract | null> {
   const db = await openDatabase();
+  await closeFinishedContracts(db);
   const row = await db.getFirstAsync<Record<string, unknown>>(
     `SELECT * FROM contracts WHERE actual_sign_off IS NULL AND join_date <= date('now','localtime')
-     ORDER BY join_date DESC LIMIT 1`
+     ORDER BY join_date DESC LIMIT 1`,
   );
   return row ? mapContract(row) : null;
 }
 
 export async function saveContract(
-  input: Omit<Contract, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
+  input: Omit<Contract, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
 ): Promise<Contract> {
   const db = await openDatabase();
   // A sailor cannot be on two vessels at once: reject overlapping contracts.
@@ -147,7 +175,7 @@ export async function saveContract(
     input.actualSignOff,
     input.actualSignOff,
     input.expectedSignOff,
-    input.joinDate
+    input.joinDate,
   );
   if (overlap) throw new Error('CONTRACT_OVERLAP');
   const now = isoNow();
@@ -157,14 +185,15 @@ export async function saveContract(
     : null;
   await db.runAsync(
     `INSERT INTO contracts (id, vessel_id, rank_id, join_date, expected_sign_off, actual_sign_off,
-       duration_days, duration_json, monthly_wage, wage_currency, travel_days, bonus, status, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       duration_days, duration_json, monthly_wage, wage_currency, travel_days, bonus, company, status, notes, created_at,
+       updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        vessel_id = excluded.vessel_id, rank_id = excluded.rank_id, join_date = excluded.join_date,
        expected_sign_off = excluded.expected_sign_off, actual_sign_off = excluded.actual_sign_off,
        duration_days = excluded.duration_days, duration_json = excluded.duration_json,
        monthly_wage = excluded.monthly_wage, wage_currency = excluded.wage_currency,
-       travel_days = excluded.travel_days, bonus = excluded.bonus,
+       travel_days = excluded.travel_days, bonus = excluded.bonus, company = excluded.company,
        status = excluded.status, notes = excluded.notes,
        updated_at = excluded.updated_at`,
     id,
@@ -179,10 +208,11 @@ export async function saveContract(
     input.wageCurrency ?? null,
     input.travelDays ?? null,
     input.bonus ?? null,
+    input.company ?? null,
     input.status,
     input.notes,
     existing?.created_at ?? now,
-    now
+    now,
   );
   const row = await db.getFirstAsync<Record<string, unknown>>('SELECT * FROM contracts WHERE id = ?', id);
   return mapContract(row!);
@@ -194,7 +224,7 @@ export async function signOffContract(id: string, actualSignOff: string): Promis
     "UPDATE contracts SET actual_sign_off = ?, status = 'completed', updated_at = ? WHERE id = ?",
     actualSignOff,
     isoNow(),
-    id
+    id,
   );
 }
 
@@ -220,5 +250,5 @@ export async function validateIMO(imo: string): Promise<boolean> {
   const digits = imo.split('').map(Number);
   const weights = [7, 6, 5, 4, 3, 2];
   const sum = digits.slice(0, 6).reduce((acc, d, i) => acc + d * weights[i], 0);
-  return (sum % 10) === digits[6];
+  return sum % 10 === digits[6];
 }

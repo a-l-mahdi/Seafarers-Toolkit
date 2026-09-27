@@ -6,6 +6,8 @@ import { newId } from '@/utils/id';
 
 export interface DocumentListRow extends Document {
   typeName: string | null;
+  typeIcon: string | null;
+  typeColor: string | null;
   status: ReturnType<typeof documentStatus>;
   daysUntilExpiry: number | null;
 }
@@ -30,27 +32,65 @@ function mapDocument(row: Record<string, unknown>): Document {
 
 export async function listDocumentTypes(): Promise<DocumentType[]> {
   const db = await openDatabase();
-  const rows = await db.getAllAsync<{ id: string; name: string; is_default: number }>(
-    'SELECT * FROM document_types ORDER BY is_default DESC, name'
-  );
-  return rows.map((r) => ({ id: r.id, name: r.name, isDefault: !!r.is_default }));
+  const rows = await db.getAllAsync<{
+    id: string;
+    name: string;
+    is_default: number;
+    icon: string | null;
+    color: string | null;
+  }>('SELECT * FROM document_types ORDER BY is_default DESC, name');
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    isDefault: !!r.is_default,
+    icon: r.icon ?? null,
+    color: r.color ?? null,
+  }));
 }
 
-export async function createDocumentType(name: string): Promise<DocumentType> {
+export async function createDocumentType(
+  name: string,
+  icon: string | null = null,
+  color: string | null = null
+): Promise<DocumentType> {
   const db = await openDatabase();
-  const type: DocumentType = { id: `doctype_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`, name, isDefault: false };
+  // Non-latin names (e.g. Persian) would all collapse to the same slug.
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const type: DocumentType = {
+    id: slug ? `doctype_${slug}` : `doctype_${newId()}`,
+    name,
+    isDefault: false,
+    icon,
+    color,
+  };
   await db.runAsync(
-    'INSERT OR IGNORE INTO document_types (id, name, is_default) VALUES (?, ?, 0)',
+    'INSERT OR IGNORE INTO document_types (id, name, is_default, icon, color) VALUES (?, ?, 0, ?, ?)',
     type.id,
-    name
+    name,
+    icon,
+    color
   );
   return type;
+}
+
+export async function updateDocumentType(
+  id: string,
+  patch: { name: string; icon: string | null; color: string | null }
+): Promise<void> {
+  const db = await openDatabase();
+  await db.runAsync(
+    'UPDATE document_types SET name = ?, icon = ?, color = ? WHERE id = ?',
+    patch.name,
+    patch.icon,
+    patch.color,
+    id
+  );
 }
 
 export async function listDocuments(now = new Date()): Promise<DocumentListRow[]> {
   const db = await openDatabase();
   const rows = await db.getAllAsync<Record<string, unknown>>(
-    `SELECT d.*, t.name AS type_name FROM documents d
+    `SELECT d.*, t.name AS type_name, t.icon AS type_icon, t.color AS type_color FROM documents d
      LEFT JOIN document_types t ON t.id = d.type_id
      ORDER BY (d.expiry_date IS NULL), d.expiry_date, d.name`
   );
@@ -59,6 +99,8 @@ export async function listDocuments(now = new Date()): Promise<DocumentListRow[]
     return {
       ...doc,
       typeName: (row.type_name as string) ?? null,
+      typeIcon: (row.type_icon as string) ?? null,
+      typeColor: (row.type_color as string) ?? null,
       status: documentStatus(
         {
           expiryDate: doc.expiryDate,

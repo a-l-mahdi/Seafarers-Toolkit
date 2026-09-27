@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/use-theme';
@@ -43,7 +44,12 @@ export function ExportChoiceModal({
     timer.current = setTimeout(() => setStatus(null), 3000);
   };
 
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
 
   const run = async (fmt: ExportFormat, action: 'download' | 'share') => {
     if (busy) return;
@@ -70,8 +76,9 @@ export function ExportChoiceModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { backgroundColor: colors.surface }]} onPress={() => undefined}>
+      <View style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
           <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
 
           {formats.map((fmt) => (
@@ -120,8 +127,8 @@ export function ExportChoiceModal({
           <Pressable onPress={onClose} style={styles.close} hitSlop={8}>
             <Text style={{ color: colors.textMuted }}>{t('common.cancel')}</Text>
           </Pressable>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }

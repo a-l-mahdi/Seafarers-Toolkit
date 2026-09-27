@@ -1,7 +1,9 @@
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Link, Stack, useRouter } from 'expo-router';
+import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
+import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Card, EmptyState, FieldRow } from '@/components/ui/primitives';
+import { Card, FieldRow } from '@/components/ui/primitives';
+import { TelegramHeader, useFloatingHeaderPadding } from '@/components/telegram-header';
 import { useDeleteSeaTimeRecord, useRanks, useSeaTimeRecords, useSeaTimeSummary } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +14,7 @@ export default function SeaTimeScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
   const insets = useSafeAreaInsets();
+  const headerPad = useFloatingHeaderPadding();
   const formatDate = useFormattedDate();
   const router = useRouter();
   const { data: summary } = useSeaTimeSummary();
@@ -30,16 +33,9 @@ export default function SeaTimeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: t('seaTime.title'),
-          headerTintColor: colors.text,
-          headerStyle: { backgroundColor: colors.background },
-        }}
-      />
+      <TelegramHeader title={t('seaTime.title')} onBack={() => router.back()} />
       <FlatList showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
-        contentContainerStyle={[styles.list, { paddingBottom: Spacing.xxl + insets.bottom }]}
+        contentContainerStyle={[styles.list, { paddingTop: headerPad, paddingBottom: Spacing.xxl + insets.bottom }]}
         ListHeaderComponent={
           <>
             <Card>
@@ -48,23 +44,18 @@ export default function SeaTimeScreen() {
                 value={`${summary?.total.days ?? 0} ${t('common.days')}${summary?.total.hours ? ` ${summary.total.hours}h` : ''}`}
               />
             </Card>
-            <Card>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('seaTime.byRank')}</Text>
-              {(summary?.byRank.length ?? 0) === 0 ? (
-                <EmptyState title={t('seaTime.noRecords')} />
-              ) : (
-                summary!.byRank.map((row) => (
+            {summary && summary.byRank.length > 0 ? (
+              <Card>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('seaTime.byRank')}</Text>
+                {summary.byRank.map((row) => (
                   <FieldRow
                     key={row.rankId ?? 'none'}
                     label={row.rankName}
                     value={`${row.days} ${t('common.days')}${row.hours ? ` ${row.hours}h` : ''}`}
                   />
-                ))
-              )}
-            </Card>
-            <Text style={[styles.sectionTitle, { color: colors.text, marginTop: Spacing.sm }]}>
-              {t('seaTime.manual')}
-            </Text>
+                ))}
+              </Card>
+            ) : null}
             <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: Spacing.sm }}>
               {t('career.addSeaTimeHint')}
             </Text>
@@ -100,13 +91,7 @@ export default function SeaTimeScreen() {
             )}
           </Pressable>
         )}
-        ListEmptyComponent={<EmptyState title={t('seaTime.noRecords')} />}
       />
-      <Link href="/contracts" asChild>
-        <Text style={{ color: colors.primary, textAlign: 'center', fontWeight: '600', paddingBottom: Spacing.md }}>
-          {t('career.goToContracts')}
-        </Text>
-      </Link>
     </View>
   );
 }

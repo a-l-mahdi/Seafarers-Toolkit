@@ -1,9 +1,17 @@
-import { Link } from 'expo-router';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Link, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useTranslation } from 'react-i18next';
-import { contractCountdown, contractProgressColor, type ContractCountdown } from '@/domain/contract';
+import {
+  contractCountdown,
+  contractPhase,
+  contractProgressColor,
+  daysUntilStart,
+  type ContractCountdown,
+} from '@/domain/contract';
 import { useFormattedDate } from '@/hooks/use-date-format';
-import { useTheme } from '@/hooks/use-theme';
+import { useOcean, useTheme } from '@/hooks/use-theme';
 import { todayISO } from '@/utils/date';
 import { useSignOffContract, type ContractListRow } from '@/hooks/queries';
 
@@ -37,14 +45,20 @@ export function ContractCard({
 }) {
   const { t } = useTranslation();
   const colors = useTheme();
+  const ocean = useOcean();
+  const router = useRouter();
   const formatDate = useFormattedDate();
   const signOff = useSignOffContract();
   const countdown: ContractCountdown = contractCountdown(item);
 
-  const isActive = item.status === 'active';
+  // Status comes from the dates: a contract whose join date is still ahead has not started.
+  const phase = contractPhase(item);
+  const isActive = phase === 'active';
+  const isUpcoming = phase === 'upcoming';
   const endDate = item.actualSignOff ?? item.expectedSignOff;
-  const totalDays = item.durationDays ?? countdown.totalDays;
-  const statusLabel = t(`contracts.${item.status}`);
+  const totalDays = countdown.totalDays;
+  const statusLabel = t(`contracts.${isUpcoming ? 'planned' : phase}`);
+  const toStart = daysUntilStart(item);
 
   const confirmSignOff = () => {
     Alert.alert(t('contracts.signOff'), t('contracts.signOffConfirm'), [
@@ -80,11 +94,16 @@ export function ContractCard({
               <View
                 style={[
                   styles.statusChip,
-                  { backgroundColor: isActive ? colors.successMuted : colors.surfaceMuted },
+                  {
+                    backgroundColor: isActive ? colors.successMuted : isUpcoming ? ocean.mist : colors.surfaceMuted,
+                  },
                 ]}
               >
                 <Text
-                  style={[styles.statusText, { color: isActive ? colors.success : colors.textMuted }]}
+                  style={[
+                    styles.statusText,
+                    { color: isActive ? colors.success : isUpcoming ? ocean.main : colors.textMuted },
+                  ]}
                 >
                   {statusLabel}
                 </Text>
@@ -135,6 +154,30 @@ export function ContractCard({
                   </Pressable>
                 </View>
               </>
+            )}
+
+            {/* Upcoming: countdown to the start + the trip's packing checklist */}
+            {isUpcoming && (
+              <View style={styles.actionRow}>
+                <View style={styles.startsRow}>
+                  <Ionicons name="time-outline" size={14} color={ocean.main} />
+                  <Text style={[styles.remaining, { color: ocean.main, fontWeight: '700' }]} numberOfLines={1}>
+                    {toStart <= 1 ? t('contracts.startsTomorrow') : t('contracts.startsIn', { days: toStart })}
+                  </Text>
+                </View>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.signOffBtn,
+                    styles.checklistBtn,
+                    { backgroundColor: ocean.main },
+                    pressed && { opacity: 0.85 },
+                  ]}
+                  onPress={() => router.push({ pathname: '/trip-checklist', params: { id: item.id } })}
+                >
+                  <Ionicons name="checkbox-outline" size={15} color="#FFFFFF" />
+                  <Text style={[styles.signOffText, { color: '#FFFFFF' }]}>{t('checklist.open')}</Text>
+                </Pressable>
+              </View>
             )}
           </View>
         </View>
@@ -266,6 +309,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 7,
+  },
+  startsRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  checklistBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   signOffText: {
     fontSize: 13,

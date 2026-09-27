@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
+import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/ui/primitives';
+import { TelegramHeader, useFloatingHeaderPadding } from '@/components/telegram-header';
 import {
   useDismissNotification,
   useMarkAllNotificationsRead,
@@ -19,6 +21,7 @@ export default function NotificationsScreen() {
   const colors = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const headerPad = useFloatingHeaderPadding();
   const { data: notifications } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
@@ -29,9 +32,17 @@ export default function NotificationsScreen() {
     Notifications.dismissAllNotificationsAsync().catch(() => undefined);
   }, []);
 
-  const openNotification = (eventType: string, eventId: string, id: string) => {
+  const openNotification = (eventType: string, eventId: string, id: string, type: string) => {
     if (eventType === 'document') {
       router.push({ pathname: '/document-alert', params: { id: eventId } });
+    } else if (eventType === 'contract') {
+      // Trip reminder → the trip, with the "don't forget your things" popup.
+      markRead.mutate(id);
+      router.push({ pathname: '/contract-detail', params: { id: eventId, reminder: type.split('_')[0] } });
+    } else if (eventType === 'note') {
+      // Note reminder → the calendar, on that note.
+      markRead.mutate(id);
+      router.push({ pathname: '/calendar', params: { note: eventId } });
     } else {
       markRead.mutate(id);
     }
@@ -39,27 +50,21 @@ export default function NotificationsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: t('notifications.title'),
-          headerTintColor: colors.text,
-          headerStyle: { backgroundColor: colors.background },
-          headerRight: () => (
-            <Pressable onPress={() => markAllRead.mutate()}>
-              <Text style={{ color: colors.primary, fontWeight: '600' }}>{t('notifications.markAllRead')}</Text>
-            </Pressable>
-          ),
-        }}
+      <TelegramHeader
+        title={t('notifications.title')}
+        onBack={() => router.back()}
+        actions={[
+          { icon: 'checkmark-done', label: t('notifications.markAllRead'), onPress: () => markAllRead.mutate() },
+        ]}
       />
-      <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.list, { paddingBottom: Spacing.xxl + insets.bottom }]}>
+      <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.list, { paddingTop: headerPad, paddingBottom: Spacing.xxl + insets.bottom }]}>
         {(notifications ?? []).length === 0 ? (
           <EmptyState title={t('notifications.empty')} />
         ) : null}
         {(notifications ?? []).map((n) => (
           <Pressable
             key={n.id}
-            onPress={() => openNotification(n.eventType, n.eventId, n.id)}
+            onPress={() => openNotification(n.eventType, n.eventId, n.id, n.notificationType)}
             style={[
               styles.row,
               n.readAt

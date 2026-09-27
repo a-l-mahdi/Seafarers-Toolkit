@@ -1,10 +1,6 @@
-export type Department =
-  | 'deck'
-  | 'engine'
-  | 'electro'
-  | 'deck_rating'
-  | 'engine_rating'
-  | 'catering';
+import type { Insignia } from '@/domain/insignia';
+
+export type Department = 'deck' | 'engine' | 'electro' | 'deck_rating' | 'engine_rating' | 'catering';
 
 export type SeaFarerStatus = 'on_board' | 'on_leave' | 'available' | 'training' | 'unknown';
 
@@ -12,12 +8,7 @@ export type SeaTimeSource = 'contract' | 'manual' | 'imported' | 'verified';
 
 export type ContractStatus = 'active' | 'completed' | 'planned';
 
-export type DocumentStatusType =
-  | 'valid'
-  | 'expiring_soon'
-  | 'not_valid'
-  | 'expired'
-  | 'no_expiry';
+export type DocumentStatusType = 'valid' | 'expiring_soon' | 'not_valid' | 'expired' | 'no_expiry';
 
 export type LeaveMode = 'ratio' | 'manual';
 
@@ -36,6 +27,8 @@ export interface Rank {
   /** Sea time (in months) required for promotion from this rank to the next one. */
   promotionMonths: number | null;
   isDefault: boolean;
+  /** Shoulder insignia (epaulette); null when the rank has none. */
+  insignia: Insignia | null;
 }
 
 export interface RankRequirement {
@@ -79,6 +72,11 @@ export interface Vessel {
   owner: string | null;
   managementCompany: string | null;
   notes: string | null;
+  /** Local path of the vessel's (landscape) photo. */
+  photoPath: string | null;
+  /** Tracking pages (generated from the IMO; the user may change them). */
+  vesselFinderUrl?: string | null;
+  marineTrafficUrl?: string | null;
   createdAt: string;
 }
 
@@ -87,7 +85,10 @@ export interface Contract {
   vesselId: string;
   rankId: string;
   joinDate: string;
+  /** Planned sign-off: the contract's end, or the date the sailor was told when
+   *  it was moved. Drives progress, charts and reminders until signed off. */
   expectedSignOff: string;
+  /** Real sign-off; set automatically to the planned one once that day passes. */
   actualSignOff: string | null;
   durationDays: number | null;
   /** Serialized duration input (mode/days/months/custom date) so edits preserve the duration. */
@@ -100,6 +101,8 @@ export interface Contract {
   travelDays: number | null;
   /** One-off bonus paid for this trip, in the wage currency. */
   bonus: number | null;
+  /** The company the contract is signed with (shown in the CV's sea service). */
+  company?: string | null;
   status: ContractStatus;
   notes: string | null;
   createdAt: string;
@@ -141,6 +144,10 @@ export interface DocumentType {
   id: string;
   name: string;
   isDefault: boolean;
+  /** MaterialCommunityIcons glyph; null = the built-in default. */
+  icon: string | null;
+  /** Icon tint (hex); null = the built-in default. */
+  color: string | null;
 }
 
 export interface DocumentFile {
@@ -284,4 +291,36 @@ export interface NotificationPreference {
   leaveEnding: boolean;
   rankProgress: boolean;
   thresholds: number[];
+}
+
+/** Packing checklist template row: a group (has children) or an item. */
+export interface ChecklistItem {
+  id: string;
+  parentId: string | null;
+  /** Built-in entry key (label is translated); null for user-added rows. */
+  preset: string | null;
+  /** User-given name; null keeps the preset's translated label. */
+  name: string | null;
+  quantity: number;
+  sortOrder: number;
+}
+
+/** A trip's tick for one checklist entry (template item id or `doc:<documentId>`). */
+export interface TripChecklistMark {
+  itemKey: string;
+  packedOut: boolean;
+  packedBack: boolean;
+}
+
+/** A note on a calendar day; with `remind` a notification fires at date + time. */
+export interface CalendarNote {
+  id: string;
+  /** ISO day (yyyy-mm-dd). */
+  date: string;
+  /** Local time HH:MM; required when `remind` is on. */
+  time: string | null;
+  text: string;
+  remind: boolean;
+  createdAt: string;
+  updatedAt: string;
 }

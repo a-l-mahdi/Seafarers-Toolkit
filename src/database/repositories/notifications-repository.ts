@@ -80,6 +80,70 @@ export async function pruneDocumentNotifications(keepEventIds: string[]): Promis
   );
 }
 
+/**
+ * Keeps reminders of one kind (contract / note) in step with their source:
+ * drops everything for sources that are gone, and not-yet-delivered reminders
+ * whose moment moved or was switched off. `current` maps each existing source
+ * id to its current reminder types.
+ */
+export async function pruneEventNotifications(eventType: string, current: Map<string, string[]>): Promise<void> {
+  const db = await openDatabase();
+  const rows = await db.getAllAsync<{ id: string; event_id: string; notification_type: string; sent_at: string | null }>(
+    'SELECT id, event_id, notification_type, sent_at FROM notifications WHERE event_type = ?',
+    eventType
+  );
+  for (const row of rows) {
+    const types = current.get(row.event_id);
+    const stale = !types || (!row.sent_at && !types.includes(row.notification_type));
+    if (stale) await db.runAsync('DELETE FROM notifications WHERE id = ?', row.id);
+  }
+}
+
+/** Refreshes the text of a reminder that has not been delivered yet. */
+export async function updatePendingContent(id: string, title: string, body: string): Promise<void> {
+  const db = await openDatabase();
+  await db.runAsync('UPDATE notifications SET title = ?, body = ? WHERE id = ? AND sent_at IS NULL', title, body, id);
+}
+
+/** Marks a reminder delivered by its key (its banner just fired or was tapped). */
+export async function markDeliveredByKey(eventType: string, eventId: string, notificationType: string): Promise<void> {
+  const db = await openDatabase();
+  await db.runAsync(
+    `UPDATE notifications SET sent_at = ?
+     WHERE event_type = ? AND event_id = ? AND notification_type = ? AND sent_at IS NULL`,
+    isoNow(),
+    eventType,
+    eventId,
+    notificationType
+  );
+}
+
+/** Marks one reminder delivered and read (its banner was tapped). */
+export async function markReadByKey(eventType: string, eventId: string, notificationType: string): Promise<void> {
+  const db = await openDatabase();
+  const now = isoNow();
+  await db.runAsync(
+    `UPDATE notifications SET sent_at = COALESCE(sent_at, ?), read_at = COALESCE(read_at, ?)
+     WHERE event_type = ? AND event_id = ? AND notification_type = ?`,
+    now,
+    now,
+    eventType,
+    eventId,
+    notificationType
+  );
+}
+
+/** Marks one contract's reminders read (its reminder popup was opened). */
+export async function markReadForContract(contractId: string): Promise<void> {
+  const db = await openDatabase();
+  await db.runAsync(
+    `UPDATE notifications SET read_at = ?
+     WHERE event_type = 'contract' AND event_id = ? AND sent_at IS NOT NULL AND read_at IS NULL`,
+    isoNow(),
+    contractId
+  );
+}
+
 /** Insert a notification; ignored if an identical one already exists (dedupe). */
 export async function upsertNotification(
   input: Omit<AppNotification, 'id' | 'readAt' | 'dismissedAt' | 'createdAt'>

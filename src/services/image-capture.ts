@@ -7,12 +7,18 @@ import ImageCropPicker from 'react-native-image-crop-picker';
  * Needs no camera permission — it only edits an existing file. If the user
  * cancels the crop, the original image is kept.
  */
-async function cropImage(uri: string): Promise<string> {
+export interface CropAspect {
+  width: number;
+  height: number;
+}
+
+async function cropImage(uri: string, aspect?: CropAspect): Promise<string> {
   try {
     const cropped = await ImageCropPicker.openCropper({
       path: uri,
       mediaType: 'photo',
-      freeStyleCropEnabled: true,
+      freeStyleCropEnabled: !aspect,
+      ...(aspect ? { width: aspect.width, height: aspect.height } : {}),
       compressImageQuality: 0.85,
     });
     const path = cropped?.path;
@@ -31,7 +37,7 @@ async function cropImage(uri: string): Promise<string> {
  * **no** CAMERA permission (the camera app owns that permission). Everything
  * stays on-device; nothing is uploaded.
  */
-export async function capturePhoto(): Promise<string | null> {
+export async function capturePhoto(aspect?: CropAspect): Promise<string | null> {
   const result = await launchCamera({
     mediaType: 'photo',
     quality: 0.8,
@@ -39,10 +45,10 @@ export async function capturePhoto(): Promise<string | null> {
   });
   if (result.didCancel || result.errorCode || !result.assets?.length) return null;
   const uri = result.assets[0].uri;
-  return uri ? cropImage(uri) : null;
+  return uri ? cropImage(uri, aspect) : null;
 }
 
-export async function pickPhoto(): Promise<string | null> {
+export async function pickPhoto(aspect?: CropAspect): Promise<string | null> {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) return null;
   const result = await ImagePicker.launchImageLibraryAsync({
@@ -50,5 +56,5 @@ export async function pickPhoto(): Promise<string | null> {
     quality: 0.8,
   });
   if (result.canceled || result.assets.length === 0) return null;
-  return cropImage(result.assets[0].uri);
+  return cropImage(result.assets[0].uri, aspect);
 }

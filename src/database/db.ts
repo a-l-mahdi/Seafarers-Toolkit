@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { DEFAULT_INSIGNIA } from '@/domain/insignia';
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -144,6 +145,41 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TEXT NOT NULL
 );
 
+-- Packing checklist template: categories (parent_id NULL) with their items.
+-- Built-in rows carry a preset key (name NULL → translated label).
+CREATE TABLE IF NOT EXISTS checklist_items (
+  id TEXT PRIMARY KEY,
+  parent_id TEXT REFERENCES checklist_items(id) ON DELETE CASCADE,
+  preset TEXT,
+  name TEXT,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+
+-- Per-trip ticks (packed for departure / packed for the way home). Removed when
+-- the contract is signed off or deleted.
+CREATE TABLE IF NOT EXISTS trip_checklist (
+  contract_id TEXT NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  item_key TEXT NOT NULL,
+  packed_out INTEGER NOT NULL DEFAULT 0,
+  packed_back INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (contract_id, item_key)
+);
+
+-- Calendar notes; with remind = 1 a notification fires at date + time.
+CREATE TABLE IF NOT EXISTS calendar_notes (
+  id TEXT PRIMARY KEY,
+  date TEXT NOT NULL,
+  time TEXT,
+  text TEXT NOT NULL,
+  remind INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendar_notes_date ON calendar_notes(date);
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_dedupe
   ON notifications(event_type, event_id, notification_type);
 
@@ -176,7 +212,7 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
     await db.execAsync('ALTER TABLE documents ADD COLUMN valid_threshold_days INTEGER');
   }
   const tables = await db.getAllAsync<{ name: string }>(
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'trip_files'"
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'trip_files'",
   );
   if (tables.length === 0) {
     await db.execAsync(`CREATE TABLE IF NOT EXISTS trip_files (
@@ -193,6 +229,15 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   }
   const contractCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(contracts)');
   const contractNames = new Set(contractCols.map((c) => c.name));
+  if (!contractNames.has('planned_sign_off')) {
+    await db.execAsync('ALTER TABLE contracts ADD COLUMN planned_sign_off TEXT');
+  }
+  // The announced sign-off date is now the planned (expected) sign-off itself.
+  await db.runAsync(
+    `UPDATE contracts SET expected_sign_off = planned_sign_off
+     WHERE planned_sign_off IS NOT NULL AND planned_sign_off > join_date`,
+  );
+  await db.runAsync('UPDATE contracts SET planned_sign_off = NULL WHERE planned_sign_off IS NOT NULL');
   if (!contractNames.has('duration_json')) {
     // Stores the exact duration input (mode/days/months/custom date) so editing
     // a contract keeps its duration instead of resetting it to form defaults.
@@ -212,6 +257,9 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   if (!contractNames.has('bonus')) {
     await db.execAsync('ALTER TABLE contracts ADD COLUMN bonus REAL');
   }
+  if (!contractNames.has('company')) {
+    await db.execAsync('ALTER TABLE contracts ADD COLUMN company TEXT');
+  }
   // Contact fields on the profile (address block + landline) — used by the CV.
   const profileCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(profile)');
   const profileNames = new Set(profileCols.map((c) => c.name));
@@ -225,6 +273,27 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   if (!docCols2.some((c) => c.name === 'place_of_issue')) {
     await db.execAsync('ALTER TABLE documents ADD COLUMN place_of_issue TEXT');
   }
+  await recomputeMonthContracts(db);
+  // A finished trip's checklist is no longer needed.
+  await db.runAsync(
+    'DELETE FROM trip_checklist WHERE contract_id IN (SELECT id FROM contracts WHERE actual_sign_off IS NOT NULL)',
+  );
+  const vesselCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(vessels)');
+  if (!vesselCols.some((c) => c.name === 'photo_path')) {
+    await db.execAsync('ALTER TABLE vessels ADD COLUMN photo_path TEXT');
+  }
+  if (!vesselCols.some((c) => c.name === 'vesselfinder_url')) {
+    await db.execAsync('ALTER TABLE vessels ADD COLUMN vesselfinder_url TEXT');
+  }
+  if (!vesselCols.some((c) => c.name === 'marinetraffic_url')) {
+    await db.execAsync('ALTER TABLE vessels ADD COLUMN marinetraffic_url TEXT');
+  }
+  const typeCols = new Set(
+    (await db.getAllAsync<{ name: string }>('PRAGMA table_info(document_types)')).map((c) => c.name),
+  );
+  if (!typeCols.has('icon')) await db.execAsync('ALTER TABLE document_types ADD COLUMN icon TEXT');
+  if (!typeCols.has('color')) await db.execAsync('ALTER TABLE document_types ADD COLUMN color TEXT');
+
   const rankCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(ranks)');
   const rankNames = new Set(rankCols.map((c) => c.name));
   if (!rankNames.has('promotion_months')) {
@@ -233,9 +302,115 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
     await db.execAsync('ALTER TABLE ranks ADD COLUMN promotion_months INTEGER');
     await db.execAsync('UPDATE ranks SET promotion_months = 12 WHERE promotion_months IS NULL');
   }
+  if (!rankNames.has('insignia')) {
+    // Epaulette as JSON; 'none' = no epaulette, NULL = not set yet (default applies).
+    await db.execAsync('ALTER TABLE ranks ADD COLUMN insignia TEXT');
+  }
+}
+
+/**
+ * Contracts entered in months used calendar months (4 months could be 123 days).
+ * A contract month is 30 days, so recompute those sign-off dates once.
+ */
+async function recomputeMonthContracts(db: SQLite.SQLiteDatabase): Promise<void> {
+  const done = await db.getFirstAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'migration_months30'");
+  if (done) return;
+  const rows = await db.getAllAsync<{
+    id: string;
+    join_date: string;
+    actual_sign_off: string | null;
+    duration_json: string | null;
+  }>('SELECT id, join_date, actual_sign_off, duration_json FROM contracts WHERE duration_json LIKE \'%"months"%\'');
+  for (const row of rows) {
+    let months = 0;
+    try {
+      const d = JSON.parse(row.duration_json ?? '') as { mode?: string; months?: number | null };
+      if (d.mode === 'months') months = Number(d.months) || 0;
+    } catch {
+      continue;
+    }
+    if (months <= 0) continue;
+    const days = months * 30;
+    const join = new Date(`${row.join_date}T00:00:00Z`);
+    join.setUTCDate(join.getUTCDate() + days);
+    const signOff = join.toISOString().slice(0, 10);
+    if (row.actual_sign_off) {
+      await db.runAsync('UPDATE contracts SET expected_sign_off = ? WHERE id = ?', signOff, row.id);
+    } else {
+      await db.runAsync(
+        'UPDATE contracts SET expected_sign_off = ?, duration_days = ? WHERE id = ?',
+        signOff,
+        days,
+        row.id,
+      );
+    }
+  }
+  await db.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES ('migration_months30', 'true')");
+}
+
+/** Built-in packing checklist: documents (filled from the user's documents) and
+ *  personal items. Presets are translated at display time. */
+const CHECKLIST_PERSONAL: [string, number][] = [
+  ['laptop', 1],
+  ['phone', 1],
+  ['chargers', 1],
+  ['powerBank', 1],
+  ['headphones', 1],
+  ['plugAdapter', 1],
+  ['books', 1],
+  ['razor', 1],
+  ['towel', 2],
+  ['shampoo', 1],
+  ['toothbrush', 1],
+  ['toothpaste', 1],
+  ['showerGel', 1],
+  ['deodorant', 1],
+  ['nailClipper', 1],
+  ['medicines', 1],
+  ['sunglasses', 1],
+  ['slippers', 1],
+  ['underwear', 7],
+  ['socks', 7],
+  ['tshirts', 5],
+  ['casualClothes', 2],
+  ['warmJacket', 1],
+  ['cash', 1],
+  ['bankCard', 1],
+  ['padlock', 1],
+  ['laundryBag', 1],
+  ['earplugs', 1],
+];
+
+async function seedChecklist(db: SQLite.SQLiteDatabase): Promise<void> {
+  const done = await db.getFirstAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'checklist_seeded'");
+  if (done) return;
+  const now = new Date().toISOString();
+  await db.runAsync(
+    "INSERT OR IGNORE INTO checklist_items (id, parent_id, preset, name, quantity, sort_order, created_at) VALUES ('chk_documents', NULL, 'documents', NULL, 1, 0, ?)",
+    now,
+  );
+  await db.runAsync(
+    "INSERT OR IGNORE INTO checklist_items (id, parent_id, preset, name, quantity, sort_order, created_at) VALUES ('chk_personal', NULL, 'personal', NULL, 1, 1, ?)",
+    now,
+  );
+  let order = 0;
+  for (const [preset, quantity] of CHECKLIST_PERSONAL) {
+    await db.runAsync(
+      "INSERT OR IGNORE INTO checklist_items (id, parent_id, preset, name, quantity, sort_order, created_at) VALUES (?, 'chk_personal', ?, NULL, ?, ?, ?)",
+      `chk_${preset}`,
+      preset,
+      quantity,
+      order,
+      now,
+    );
+    order += 1;
+  }
+  await db.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES ('checklist_seeded', 'true')");
 }
 
 async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
+  await seedChecklist(db);
+
   const rankCount = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM ranks');
   if (!rankCount || rankCount.c === 0) {
     const defaultRanks: [string, string, number][] = [
@@ -278,7 +453,7 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
         `rank_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
         department,
         name,
-        level
+        level,
       );
     }
   }
@@ -298,7 +473,7 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
       `rank_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
       department,
       name,
-      level
+      level,
     );
   }
   await db.runAsync("UPDATE ranks SET level = 3 WHERE id = 'rank_etr' AND level = 2");
@@ -334,11 +509,27 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
       `rank_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
       department,
       name,
-      level
+      level,
     );
   }
   // The retired "other" department no longer exists in the profile picker.
   await db.runAsync("UPDATE profile SET department = NULL WHERE department = 'other'");
+
+  // Rank seed v4: a Chief ETO heads the electrical ladder (once; the user may delete it).
+  const chiefEto = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM settings WHERE key = 'rank_chief_eto_seeded'",
+  );
+  if (!chiefEto) {
+    await db.runAsync(
+      "INSERT OR IGNORE INTO ranks (id, department, name, level, promotion_months, is_default) VALUES ('rank_chief_eto', 'electro', 'Chief ETO', 0, 12, 1)",
+    );
+    await db.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES ('rank_chief_eto_seeded', 'true')");
+  }
+
+  // Standard epaulettes for the built-in officer ranks the user has not set yet.
+  for (const [id, insignia] of Object.entries(DEFAULT_INSIGNIA)) {
+    await db.runAsync('UPDATE ranks SET insignia = ? WHERE id = ? AND insignia IS NULL', JSON.stringify(insignia), id);
+  }
 
   const docTypeCount = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM document_types');
   if (!docTypeCount || docTypeCount.c === 0) {
@@ -360,21 +551,18 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
       await db.runAsync(
         'INSERT OR IGNORE INTO document_types (id, name, is_default) VALUES (?, ?, 1)',
         `doctype_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
-        name
+        name,
       );
     }
   }
 
   // Ensure newer default document types also exist on already-seeded installs.
-  const laterDefaultTypes = [
-    'Basic Training for Liquid Gas Tanker',
-    'Basic Training for Oil and Chemical Tanker',
-  ];
+  const laterDefaultTypes = ['Basic Training for Liquid Gas Tanker', 'Basic Training for Oil and Chemical Tanker'];
   for (const name of laterDefaultTypes) {
     await db.runAsync(
       'INSERT OR IGNORE INTO document_types (id, name, is_default) VALUES (?, ?, 1)',
       `doctype_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
-      name
+      name,
     );
   }
 
@@ -384,6 +572,6 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
     `DELETE FROM documents WHERE id IN ('doc_passport','doc_seaman_book','doc_coc')
        AND (number IS NULL OR number = '')
        AND issue_date IS NULL AND expiry_date IS NULL
-       AND (place_of_issue IS NULL OR place_of_issue = '')`
+       AND (place_of_issue IS NULL OR place_of_issue = '')`,
   );
 }

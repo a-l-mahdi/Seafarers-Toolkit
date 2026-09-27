@@ -25,6 +25,9 @@ const TABLES = [
   'trip_files',
   'document_types',
   'settings',
+  'checklist_items',
+  'trip_checklist',
+  'calendar_notes',
 ] as const;
 
 const BACKUP_VERSION = 2;
@@ -53,6 +56,9 @@ const INSERT_ORDER = [
   'documents',
   'document_files',
   'trip_files',
+  'checklist_items',
+  'trip_checklist',
+  'calendar_notes',
 ] as const;
 
 export interface BackupFile {
@@ -106,9 +112,7 @@ async function collectFilePaths(): Promise<string[]> {
  * file path onto the CURRENT document directory so attachments resolve even
  * after a reinstall, a different device, or the package rename.
  */
-async function normalizeRestoredPaths(
-  db: Awaited<ReturnType<typeof openDatabase>>
-): Promise<void> {
+async function normalizeRestoredPaths(db: Awaited<ReturnType<typeof openDatabase>>): Promise<void> {
   const docDir = FileSystem.documentDirectory ?? '';
   if (!docDir) return;
   const rebase = (p: string | null): string | null => {
@@ -116,7 +120,7 @@ async function normalizeRestoredPaths(
     const marker = '/files/';
     const i = p.lastIndexOf(marker);
     if (i >= 0) return `${docDir}${p.slice(i + marker.length)}`;
-    for (const m of ['documents/', 'trips/', 'photos/']) {
+    for (const m of ['documents/', 'trips/', 'profile/', 'photos/', 'vessels/']) {
       const j = p.indexOf(m);
       if (j >= 0) return `${docDir}${p.slice(j)}`;
     }
@@ -124,9 +128,7 @@ async function normalizeRestoredPaths(
   };
 
   for (const table of ['document_files', 'trip_files'] as const) {
-    const rows = await db.getAllAsync<{ id: string; local_path: string | null }>(
-      `SELECT id, local_path FROM ${table}`
-    );
+    const rows = await db.getAllAsync<{ id: string; local_path: string | null }>(`SELECT id, local_path FROM ${table}`);
     for (const row of rows) {
       const next = rebase(row.local_path);
       if (next && next !== row.local_path) {
@@ -135,8 +137,18 @@ async function normalizeRestoredPaths(
     }
   }
 
+  const vesselRows = await db.getAllAsync<{ id: string; photo_path: string | null }>(
+    'SELECT id, photo_path FROM vessels',
+  );
+  for (const row of vesselRows) {
+    const next = rebase(row.photo_path);
+    if (next && next !== row.photo_path) {
+      await db.runAsync('UPDATE vessels SET photo_path = ? WHERE id = ?', next, row.id);
+    }
+  }
+
   const profiles = await db.getAllAsync<{ id: string; photo_path: string | null }>(
-    'SELECT id, photo_path FROM profile'
+    'SELECT id, photo_path FROM profile',
   );
   for (const row of profiles) {
     const next = rebase(row.photo_path);
@@ -155,7 +167,7 @@ async function normalizeRestoredPaths(
 export async function createBackup(
   password: string,
   onProgress?: ProgressFn,
-  appSettings?: BackupAppSettings
+  appSettings?: BackupAppSettings,
 ): Promise<{ count: number; size: number; file: ReadyFile }> {
   const db = await openDatabase();
   const tables: Record<string, Record<string, unknown>[]> = {};
@@ -233,7 +245,7 @@ export async function pickBackupFile(): Promise<{ uri: string; name: string } | 
 export async function restoreBackup(
   fileUri: string,
   password: string,
-  onProgress?: ProgressFn
+  onProgress?: ProgressFn,
 ): Promise<{ count: number; files: number; appSettings: BackupAppSettings | null }> {
   const uri = fileUri;
   const info = await FileSystem.getInfoAsync(uri);
@@ -309,17 +321,29 @@ export async function restoreBackup(
   const db = await openDatabase();
   await db.withTransactionAsync(async () => {
     await db.execAsync(
-      'DELETE FROM trip_files; DELETE FROM document_files; DELETE FROM documents; DELETE FROM sea_time_records; DELETE FROM contracts; DELETE FROM vessels; DELETE FROM notifications; DELETE FROM profile; DELETE FROM ranks; DELETE FROM document_types; DELETE FROM settings;'
+      'DELETE FROM trip_checklist; DELETE FROM trip_files; DELETE FROM document_files; DELETE FROM documents; DELETE FROM sea_time_records; DELETE FROM contracts; DELETE FROM vessels; DELETE FROM notifications; DELETE FROM profile; DELETE FROM ranks; DELETE FROM document_types; DELETE FROM settings;',
     );
+    // Backups made before the checklist existed keep the current checklist.
+    if (tables.checklist_items) await db.execAsync('DELETE FROM checklist_items;');
+    if (tables.calendar_notes) await db.execAsync('DELETE FROM calendar_notes;');
     for (const table of INSERT_ORDER) {
-      const rows = tables[table] ?? [];
+      let rows = tables[table] ?? [];
+      // Only the columns this app version has: a backup from an older or newer
+      // version may carry a column that no longer (or not yet) exists.
+      const columns = new Set(
+        (await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`)).map((c) => c.name),
+      );
+      // Checklist groups before their items (self-referencing parent_id).
+      if (table === 'checklist_items') {
+        rows = [...rows].sort((a, b) => (a.parent_id ? 1 : 0) - (b.parent_id ? 1 : 0));
+      }
       for (const row of rows) {
-        const keys = Object.keys(row);
+        const keys = Object.keys(row).filter((k) => columns.has(k));
         if (keys.length === 0) continue;
         const placeholders = keys.map(() => '?').join(', ');
         await db.runAsync(
           `INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`,
-          ...keys.map((k) => row[k] as string | number | null)
+          ...keys.map((k) => row[k] as string | number | null),
         );
         tick();
       }

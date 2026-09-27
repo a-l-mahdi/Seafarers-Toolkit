@@ -113,4 +113,15 @@ describe('computeLeaveLedger (unused leave carries over to the next contract)', 
     );
     expect(ledger.unusedNow).toBe(66);
   });
+
+  it('ignores a contract that has not started yet', () => {
+    const now = new Date('2026-11-01T12:00:00Z');
+    const past = [
+      contract('a', '2026-01-01', '2026-05-01', '2026-05-01'),
+      contract('b', '2026-05-11', '2026-09-01', '2026-09-01'),
+    ];
+    const withFuture = computeLeaveLedger([...past, contract('c', '2026-12-01', '2027-03-31')], settings, now);
+    expect(withFuture).toEqual(computeLeaveLedger(past, settings, now));
+    expect(withFuture.unusedNow).toBe(65);
+  });
 });

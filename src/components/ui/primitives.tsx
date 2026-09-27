@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Spacing } from '@/constants/theme';
 

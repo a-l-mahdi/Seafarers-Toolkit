@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button, Card, FieldRow } from '@/components/ui/primitives';
-import { FormScrollView, Checkbox, HeaderBar, LabeledInput, Select } from '@/components/ui/form';
+import { FormScrollView, Checkbox, LabeledInput, Select } from '@/components/ui/form';
+import { TelegramHeader, useFloatingHeaderPadding } from '@/components/telegram-header';
+import { showSavedToast } from '@/components/saved-toast';
 import { DatePickerField } from '@/components/ui/date-picker';
 import { FileGallery, type DisplayFile } from '@/components/file-gallery';
 import { AttachSourceRow } from '@/components/attach-source-row';
@@ -17,17 +20,13 @@ import {
   useSaveDocument,
   useDeleteDocument,
 } from '@/hooks/queries';
-import {
-  importUriFile,
-  isAllowedFileType,
-  pickDocumentFile,
-  removeImportedFile,
-} from '@/services/file-storage';
+import { importUriFile, isAllowedFileType, pickDocumentFile, removeImportedFile } from '@/services/file-storage';
 import { capturePhoto, pickPhoto } from '@/services/image-capture';
 import { parseDocumentText } from '@/services/ocr';
 import { useFormattedDate } from '@/hooks/use-date-format';
 import { DEFAULT_VALIDITY_DAYS } from '@/domain/document-status';
 import { useTheme } from '@/hooks/use-theme';
+import { useIsDirty, useUnsavedGuard } from '@/hooks/use-unsaved-guard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '@/constants/theme';
 import type { DocumentListRow } from '@/hooks/queries';
@@ -60,6 +59,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   const router = useRouter();
   const colors = useTheme();
   const insets = useSafeAreaInsets();
+  const headerPad = useFloatingHeaderPadding();
   const formatDate = useFormattedDate();
   const { data: types } = useDocumentTypes();
   const createType = useCreateDocumentType();
@@ -75,11 +75,9 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   const [issueDate, setIssueDate] = useState(initial?.issueDate ?? '');
   const [expiryDate, setExpiryDate] = useState(initial?.expiryDate ?? '');
   const [unlimited, setUnlimited] = useState(initial ? !initial.expiryDate : false);
-  const [warningThreshold, setWarningThreshold] = useState(
-    initial?.warningThresholdDays?.toString() ?? '210'
-  );
+  const [warningThreshold, setWarningThreshold] = useState(initial?.warningThresholdDays?.toString() ?? '210');
   const [validThreshold, setValidThreshold] = useState(
-    initial?.validThresholdDays?.toString() ?? String(DEFAULT_VALIDITY_DAYS)
+    initial?.validThresholdDays?.toString() ?? String(DEFAULT_VALIDITY_DAYS),
   );
   const [authority, setAuthority] = useState(initial?.issuingAuthority ?? '');
   const [country, setCountry] = useState(initial?.issuingCountry ?? '');
@@ -168,7 +166,24 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
     setNewTypeName('');
   };
 
-  const submit = async () => {
+  const dirty =
+    useIsDirty([
+      name,
+      number,
+      typeId,
+      issueDate,
+      expiryDate,
+      unlimited,
+      warningThreshold,
+      validThreshold,
+      authority,
+      country,
+      placeOfIssue,
+      notes,
+    ]) || pending.length > 0;
+  const leave = useUnsavedGuard(dirty, () => void submit());
+
+  async function submit() {
     if (!name.trim()) {
       setError(t('documents.errors.nameRequired'));
       return;
@@ -202,11 +217,12 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
           // per-file copy is best-effort
         }
       }
-      router.back();
+      showSavedToast();
+      leave();
     } finally {
       setSaving(false);
     }
-  };
+  }
 
   const confirmDelete = () => {
     if (!initial) return;
@@ -217,7 +233,7 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
         style: 'destructive',
         onPress: () => {
           remove.mutate(initial.id);
-          router.back();
+          leave();
         },
       },
     ]);
@@ -226,119 +242,118 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <HeaderBar
+      <TelegramHeader
         title={initial ? t('common.edit') : t('documents.add')}
         onBack={() => router.back()}
-        action={initial ? { label: t('common.delete'), onPress: confirmDelete } : undefined}
+        actions={[{ icon: 'save-outline', label: t('common.save'), onPress: () => void submit() }]}
       />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <FormScrollView
-          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
-          contentContainerStyle={[styles.form, { paddingBottom: Spacing.xxl + insets.bottom }]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={[styles.form, { paddingTop: headerPad, paddingBottom: Spacing.xxl + insets.bottom }]}
         >
-        {initial ? (
-          <View style={styles.statusRow}>
-            <Badge label={t(`documents.status.${initial.status}`)} tone={STATUS_TONE[initial.status]} />
-          </View>
-        ) : null}
-
-        <Card>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            {t('documents.scan.attachTitle')}
-          </Text>
-          <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: Spacing.md }}>
-            {t('documents.scan.hint')}
-          </Text>
-          <AttachSourceRow onPick={(s) => void handleAdd(s)} disabled={scanBusy} />
-          {scanBusy ? (
-            <View style={styles.busy}>
-              <ActivityIndicator color={colors.primary} />
-              <Text style={{ color: colors.textMuted, marginTop: 8 }}>{t('documents.scan.reading')}</Text>
+          {initial ? (
+            <View style={styles.statusRow}>
+              <Badge label={t(`documents.status.${initial.status}`)} tone={STATUS_TONE[initial.status]} />
             </View>
           ) : null}
-          {scanFeedback ? (
+
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('documents.scan.attachTitle')}</Text>
+            <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: Spacing.md }}>
+              {t('documents.scan.hint')}
+            </Text>
+            <AttachSourceRow onPick={(s) => void handleAdd(s)} disabled={scanBusy} />
+            {scanBusy ? (
+              <View style={styles.busy}>
+                <ActivityIndicator color={colors.primary} />
+                <Text style={{ color: colors.textMuted, marginTop: 8 }}>{t('documents.scan.reading')}</Text>
+              </View>
+            ) : null}
+            {scanFeedback ? (
+              <Text
+                style={{
+                  color: scanFeedback === t('documents.scan.autoFilled') ? colors.success : colors.danger,
+                  fontSize: 13,
+                  marginTop: Spacing.sm,
+                }}
+              >
+                {scanFeedback}
+              </Text>
+            ) : null}
+          </Card>
+
+          <LabeledInput label={t('documents.name')} value={name} onChangeText={setName} error={error} />
+          <LabeledInput label={t('documents.number')} value={number} onChangeText={setNumber} />
+          <Select
+            label={t('documents.type')}
+            value={typeId}
+            options={(types ?? []).map((ty) => ({ id: ty.id, label: ty.name }))}
+            onSelect={selectType}
+          />
+          <LabeledInput
+            label={t('documents.scan.newType')}
+            value={newTypeName}
+            onChangeText={setNewTypeName}
+            placeholder={t('documents.scan.newTypeHint')}
+          />
+          {newTypeName.trim() ? (
             <Text
-              style={{
-                color: scanFeedback === t('documents.scan.autoFilled') ? colors.success : colors.danger,
-                fontSize: 13,
-                marginTop: Spacing.sm,
-              }}
+              style={{ color: colors.primary, fontWeight: '600', marginTop: -12, marginBottom: Spacing.md }}
+              onPress={() => void ensureType()}
             >
-              {scanFeedback}
+              + {t('documents.scan.addType')} ({newTypeName.trim()})
             </Text>
           ) : null}
-        </Card>
-
-        <LabeledInput label={t('documents.name')} value={name} onChangeText={setName} error={error} />
-        <LabeledInput label={t('documents.number')} value={number} onChangeText={setNumber} />
-        <Select
-          label={t('documents.type')}
-          value={typeId}
-          options={(types ?? []).map((ty) => ({ id: ty.id, label: ty.name }))}
-          onSelect={selectType}
-        />
-        <LabeledInput
-          label={t('documents.scan.newType')}
-          value={newTypeName}
-          onChangeText={setNewTypeName}
-          placeholder={t('documents.scan.newTypeHint')}
-        />
-        {newTypeName.trim() ? (
-          <Text
-            style={{ color: colors.primary, fontWeight: '600', marginTop: -12, marginBottom: Spacing.md }}
-            onPress={() => void ensureType()}
-          >
-            + {t('documents.scan.addType')} ({newTypeName.trim()})
-          </Text>
-        ) : null}
-        <DatePickerField label={t('documents.issueDate')} value={issueDate} onChange={setIssueDate} />
-        {unlimited ? null : (
-          <DatePickerField label={t('documents.expiryDate')} value={expiryDate} onChange={setExpiryDate} />
-        )}
-        <Checkbox
-          label={t('documents.unlimited')}
-          value={unlimited}
-          onChange={(v) => {
-            setUnlimited(v);
-            if (v) setExpiryDate('');
-          }}
-        />
-        <LabeledInput
-          label={t('documents.warningThreshold')}
-          value={warningThreshold}
-          onChangeText={setWarningThreshold}
-          keyboardType="numeric"
-        />
-        <LabeledInput
-          label={t('documents.validThreshold')}
-          value={validThreshold}
-          onChangeText={setValidThreshold}
-          keyboardType="numeric"
-        />
-        <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: -8, marginBottom: Spacing.md }}>
-          {t('documents.thresholdHint')}
-        </Text>
-        <LabeledInput label={t('documents.authority')} value={authority} onChangeText={setAuthority} />
-        <LabeledInput label={t('documents.country')} value={country} onChangeText={setCountry} />
-        <LabeledInput label={t('documents.placeOfIssue')} value={placeOfIssue} onChangeText={setPlaceOfIssue} />
-        <LabeledInput label={t('documents.notes')} value={notes} onChangeText={setNotes} multiline />
-        <DocumentFilesSection
-          documentId={documentId}
-          pending={pending}
-          onRemovePending={(id) => setPending((p) => p.filter((f) => f.id !== id))}
-        />
-        {initial ? <FieldRow label={t('documents.expiryDate')} value={formatDate(initial.expiryDate)} /> : null}
-        <View style={styles.actions}>
-          <Button
-            label={saving ? t('common.loading') : t('common.save')}
-            onPress={() => void submit()}
-            style={styles.flexBtn}
-            disabled={saving}
+          <DatePickerField label={t('documents.issueDate')} value={issueDate} onChange={setIssueDate} />
+          {unlimited ? null : (
+            <DatePickerField label={t('documents.expiryDate')} value={expiryDate} onChange={setExpiryDate} />
+          )}
+          <Checkbox
+            label={t('documents.unlimited')}
+            value={unlimited}
+            onChange={(v) => {
+              setUnlimited(v);
+              if (v) setExpiryDate('');
+            }}
           />
-          {initial ? (
-            <Button label={t('common.delete')} onPress={confirmDelete} variant="danger" style={styles.flexBtn} />
-          ) : null}
-        </View>
+          <LabeledInput
+            label={t('documents.warningThreshold')}
+            value={warningThreshold}
+            onChangeText={setWarningThreshold}
+            keyboardType="numeric"
+          />
+          <LabeledInput
+            label={t('documents.validThreshold')}
+            value={validThreshold}
+            onChangeText={setValidThreshold}
+            keyboardType="numeric"
+          />
+          <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: -8, marginBottom: Spacing.md }}>
+            {t('documents.thresholdHint')}
+          </Text>
+          <LabeledInput label={t('documents.authority')} value={authority} onChangeText={setAuthority} />
+          <LabeledInput label={t('documents.country')} value={country} onChangeText={setCountry} />
+          <LabeledInput label={t('documents.placeOfIssue')} value={placeOfIssue} onChangeText={setPlaceOfIssue} />
+          <LabeledInput label={t('documents.notes')} value={notes} onChangeText={setNotes} multiline />
+          <DocumentFilesSection
+            documentId={documentId}
+            pending={pending}
+            onRemovePending={(id) => setPending((p) => p.filter((f) => f.id !== id))}
+          />
+          {initial ? <FieldRow label={t('documents.expiryDate')} value={formatDate(initial.expiryDate)} /> : null}
+          <View style={styles.actions}>
+            <Button
+              label={saving ? t('common.loading') : t('common.save')}
+              onPress={() => void submit()}
+              style={styles.flexBtn}
+              disabled={saving}
+            />
+            {initial ? (
+              <Button label={t('common.delete')} onPress={confirmDelete} variant="danger" style={styles.flexBtn} />
+            ) : null}
+          </View>
         </FormScrollView>
       </KeyboardAvoidingView>
     </View>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/use-theme';
@@ -25,7 +26,12 @@ export function FileReadyModal({ file, onClose }: { file: ReadyFile | null; onCl
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setStatus(null), 3000);
   };
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
 
   if (!file) return null;
 
@@ -53,8 +59,9 @@ export function FileReadyModal({ file, onClose }: { file: ReadyFile | null; onCl
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { backgroundColor: colors.surface }]} onPress={() => undefined}>
+      <View style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
           <Text style={[styles.title, { color: colors.text }]}>{t('files.ready')}</Text>
 
           <View style={styles.fileRow}>
@@ -91,8 +98,8 @@ export function FileReadyModal({ file, onClose }: { file: ReadyFile | null; onCl
           <Pressable onPress={onClose} style={styles.close} hitSlop={8}>
             <Text style={{ color: colors.textMuted }}>{t('common.cancel')}</Text>
           </Pressable>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -101,7 +108,13 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: '#000000A0', justifyContent: 'center', padding: Spacing.xl },
   sheet: { borderRadius: Radius.lg, padding: Spacing.lg, alignItems: 'center' },
   title: { fontSize: 16, fontWeight: '700', marginBottom: Spacing.md },
-  fileRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.lg, alignSelf: 'stretch' },
+  fileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
+    alignSelf: 'stretch',
+  },
   iconWrap: { width: 54, height: 54, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   fileName: { flex: 1, fontSize: 14, fontWeight: '500' },
   actions: { flexDirection: 'row', gap: Spacing.md, alignSelf: 'stretch' },

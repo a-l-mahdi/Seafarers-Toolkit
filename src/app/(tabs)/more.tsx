@@ -1,59 +1,86 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Link, Stack } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
+import { Link } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
+import { useFloatingTabBarPadding } from '@/components/floating-tab-bar';
+import { useTabScrollReset, withTabStrip } from '@/components/tab-strip';
 
-const ITEMS: { href: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { href: '/cv', icon: 'document-text' },
-  { href: '/sea-time', icon: 'water' },
-  { href: '/vessels', icon: 'boat' },
-  { href: '/document-types', icon: 'pricetags' },
-  { href: '/calendar', icon: 'calendar' },
-  { href: '/reports', icon: 'stats-chart' },
-  { href: '/notifications', icon: 'notifications' },
-  { href: '/profile-form', icon: 'person' },
-  { href: '/ranks', icon: 'ribbon' },
-  { href: '/settings', icon: 'settings' },
+type Item = { href: string; icon: keyof typeof Ionicons.glyphMap };
+
+/** Grouped like a settings screen: everyday tools first, then career records,
+ *  then the reference lists they draw on, and Settings last on its own. */
+const GROUPS: Item[][] = [
+  [
+    { href: '/calendar', icon: 'calendar' },
+    { href: '/checklist', icon: 'checkbox' },
+    { href: '/notifications', icon: 'notifications' },
+  ],
+  [
+    { href: '/cv', icon: 'document-text' },
+    { href: '/reports', icon: 'stats-chart' },
+  ],
+  [
+    { href: '/vessels', icon: 'boat' },
+    { href: '/ranks', icon: 'ribbon' },
+    { href: '/document-types', icon: 'pricetags' },
+  ],
+  [{ href: '/settings', icon: 'settings' }],
 ];
 
-export default function MoreScreen() {
+function MoreScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
+  const scrollRef = useTabScrollReset<ScrollView>();
+  const tabPad = useFloatingTabBarPadding();
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: t('more.title'),
-          headerTintColor: colors.text,
-          headerStyle: { backgroundColor: colors.background },
-        }}
-      />
-      <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.content} style={{ backgroundColor: colors.background }}>
-        <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {ITEMS.map((item, index) => (
-            <Link key={item.href} href={item.href as never} asChild>
-              <Pressable
-                style={[
-                  styles.item,
-                  { borderBottomColor: colors.border },
-                  index === ITEMS.length - 1 && styles.lastItem,
-                ]}
-              >
-                <View style={styles.row}>
-                  <View style={[styles.iconWrap, { backgroundColor: colors.primaryMuted }]}>
-                    <Ionicons name={item.icon} size={22} color={colors.primary} />
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.background,
+          paddingTop: insets.top + Spacing.lg,
+        },
+      ]}
+    >
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={[styles.content, { paddingBottom: tabPad }]}
+        style={{ backgroundColor: colors.background }}
+      >
+        {GROUPS.map((items, g) => (
+          <View key={g} style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {items.map((item, index) => (
+              <Link key={item.href} href={item.href as never} asChild>
+                <Pressable
+                  android_ripple={{ color: colors.primaryMuted }}
+                  style={[
+                    styles.item,
+                    { borderBottomColor: colors.border },
+                    index === items.length - 1 && styles.lastItem,
+                  ]}
+                >
+                  <View style={styles.row}>
+                    <View style={[styles.iconWrap, { backgroundColor: colors.primaryMuted }]}>
+                      <Ionicons name={item.icon} size={22} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.label, { color: colors.text }]}>{t(toLabelKey(item.href))}</Text>
+                    <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                   </View>
-                  <Text style={[styles.label, { color: colors.text }]}>{t(toLabelKey(item.href))}</Text>
-                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-                </View>
-              </Pressable>
-            </Link>
-          ))}
-        </View>
+                </Pressable>
+              </Link>
+            ))}
+          </View>
+        ))}
       </ScrollView>
     </View>
   );
@@ -63,8 +90,8 @@ function toLabelKey(href: string): string {
   switch (href) {
     case '/cv':
       return 'more.cv';
-    case '/sea-time':
-      return 'more.seaTime';
+    case '/checklist':
+      return 'more.checklist';
     case '/vessels':
       return 'more.vessels';
     case '/document-types':
@@ -75,8 +102,6 @@ function toLabelKey(href: string): string {
       return 'more.reports';
     case '/notifications':
       return 'more.notifications';
-    case '/profile-form':
-      return 'more.profile';
     case '/ranks':
       return 'more.ranks';
     case '/settings':
@@ -88,7 +113,7 @@ function toLabelKey(href: string): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: Spacing.lg, paddingTop: Spacing.md },
-  content: { flexGrow: 1, paddingBottom: Spacing.xl },
+  content: { flexGrow: 1, gap: Spacing.lg, paddingBottom: Spacing.xl },
   list: {
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
@@ -114,3 +139,5 @@ const styles = StyleSheet.create({
   },
   label: { fontSize: 16, fontWeight: '500', flex: 1 },
 });
+
+export default withTabStrip(MoreScreen, 4);

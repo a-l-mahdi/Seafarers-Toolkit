@@ -1,5 +1,9 @@
 import type { Contract, DurationMode } from '@/types/domain';
-import { addDaysISO, addMonthsISO, diffInDays, isBefore, todayISO } from '@/utils/date';
+import { addDaysISO, diffInDays, isBefore, todayISO } from '@/utils/date';
+
+/** Crewing contracts count a month as 30 days (4 months = 120 days), the same
+ *  basis as the wage day rate — not calendar months, which vary 28–31 days. */
+export const CONTRACT_DAYS_PER_MONTH = 30;
 
 export interface DurationInput {
   mode: DurationMode;
@@ -10,7 +14,7 @@ export interface DurationInput {
 
 /**
  * Computes the expected sign-off date from a join date and duration.
- * Days: join + N days. Months: join + N months (month-end clamped).
+ * Days: join + N days. Months: join + N × 30 days.
  * Custom: the user-provided date (must be after join).
  */
 export function expectedSignOff(joinDate: string, duration: DurationInput): string | null {
@@ -19,7 +23,7 @@ export function expectedSignOff(joinDate: string, duration: DurationInput): stri
       return duration.days && duration.days > 0 ? addDaysISO(joinDate, duration.days) : null;
     case 'months':
       return duration.months && duration.months > 0
-        ? addMonthsISO(joinDate, duration.months)
+        ? addDaysISO(joinDate, duration.months * CONTRACT_DAYS_PER_MONTH)
         : null;
     case 'custom_date':
       return duration.customEndDate && isBefore(joinDate, duration.customEndDate)
@@ -28,6 +32,36 @@ export function expectedSignOff(joinDate: string, duration: DurationInput): stri
     default:
       return null;
   }
+}
+
+/**
+ * Where a contract stands today: 'upcoming' before the join date (nothing is
+ * earned yet), 'active' from the join date until signed off, 'completed' once
+ * an actual sign-off date is recorded. Derived from dates, never stored, so it
+ * moves on by itself as days pass.
+ */
+export type ContractPhase = 'upcoming' | 'active' | 'completed';
+
+export function contractPhase(
+  contract: Pick<Contract, 'joinDate' | 'actualSignOff'>,
+  now: Date = new Date()
+): ContractPhase {
+  if (contract.actualSignOff) return 'completed';
+  return isBefore(todayISO(now), contract.joinDate) ? 'upcoming' : 'active';
+}
+
+/** Days until the join date (0 on/after it). */
+export function daysUntilStart(contract: Pick<Contract, 'joinDate'>, now: Date = new Date()): number {
+  return Math.max(diffInDays(todayISO(now), contract.joinDate), 0);
+}
+
+/** Status stored with a contract when it is saved (display uses contractPhase). */
+export function contractStatusFor(
+  contract: Pick<Contract, 'joinDate' | 'actualSignOff'>,
+  now: Date = new Date()
+): Contract['status'] {
+  const phase = contractPhase(contract, now);
+  return phase === 'upcoming' ? 'planned' : phase;
 }
 
 export interface ContractCountdown {
@@ -83,6 +117,7 @@ export function contractCountdown(contract: Contract, now: Date = new Date()): C
   const totalDays = diffInDays(contract.joinDate, end);
   const today = todayISO(now);
   const reference = isBefore(today, end) ? today : end;
+  // Before the join date nothing has elapsed yet (reference < join → clamped to 0).
   const elapsedDays = Math.max(diffInDays(contract.joinDate, reference), 0);
   const remainingDays = Math.max(totalDays - elapsedDays, 0);
   const progress = totalDays > 0 ? Math.min(elapsedDays / totalDays, 1) : 0;

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AppNotification,
+  ChecklistItem,
   Contract,
   CvProfile,
   Document,
@@ -9,6 +10,7 @@ import type {
   Profile,
   Rank,
   SeaTimeRecord,
+  TripChecklistMark,
   Vessel,
 } from '@/types/domain';
 import * as RanksRepo from '@/database/repositories/ranks-repository';
@@ -19,8 +21,16 @@ import * as SeaTimeRepo from '@/database/repositories/sea-time-repository';
 import * as DocumentsRepo from '@/database/repositories/documents-repository';
 import * as NotificationsRepo from '@/database/repositories/notifications-repository';
 import * as TripFilesRepo from '@/database/repositories/trip-files-repository';
-import { clearDeliveredForDocument, resyncDocumentNotifications } from '@/services/notification-service';
+import * as ChecklistRepo from '@/database/repositories/checklist-repository';
+import * as NotesRepo from '@/database/repositories/calendar-notes-repository';
+import {
+  clearDeliveredForContract,
+  clearDeliveredForDocument,
+  resyncDocumentNotifications,
+  resyncNotifications,
+} from '@/services/notification-service';
 import type { ContractListRow, DocumentListRow } from '@/database/repositories';
+import type { DocumentSort } from '@/domain/document-sort';
 
 export const queryKeys = {
   profile: ['profile'] as const,
@@ -29,6 +39,7 @@ export const queryKeys = {
   vessels: ['vessels'] as const,
   contracts: ['contracts'] as const,
   documents: ['documents'] as const,
+  documentSort: ['document-sort'] as const,
   documentTypes: ['document-types'] as const,
   documentFiles: (id: string) => ['document-files', id] as const,
   seaTime: ['sea-time'] as const,
@@ -36,6 +47,9 @@ export const queryKeys = {
   leaveSettings: ['leave-settings'] as const,
   notifications: ['notifications'] as const,
   tripFiles: (key: string) => ['trip-files', key] as const,
+  checklist: ['checklist'] as const,
+  calendarNotes: ['calendar-notes'] as const,
+  tripChecklist: (contractId: string) => ['trip-checklist', contractId] as const,
 };
 
 export function useProfile() {
@@ -69,8 +83,12 @@ export function useRanks() {
 export function useCreateRank() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { department: Rank['department']; name: string; level: number; promotionMonths?: number | null }) =>
-      RanksRepo.createRank(input.department, input.name, input.level, input.promotionMonths ?? 12),
+    mutationFn: (input: {
+      department: Rank['department'];
+      name: string;
+      level: number;
+      promotionMonths?: number | null;
+    }) => RanksRepo.createRank(input.department, input.name, input.level, input.promotionMonths ?? 12),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ranks }),
   });
 }
@@ -79,6 +97,15 @@ export function useUpdateRank() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (rank: Rank) => RanksRepo.updateRank(rank),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ranks }),
+  });
+}
+
+export function useUpdateRankInsignia() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, insignia }: { id: string; insignia: Rank['insignia'] }) =>
+      RanksRepo.updateRankInsignia(id, insignia),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ranks }),
   });
 }
@@ -118,8 +145,7 @@ export function useVessels() {
 export function useSaveVessel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: Omit<Vessel, 'id' | 'createdAt'> & { id?: string }) =>
-      VesselsRepo.saveVessel(input),
+    mutationFn: (input: Omit<Vessel, 'id' | 'createdAt'> & { id?: string }) => VesselsRepo.saveVessel(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.vessels });
       qc.invalidateQueries({ queryKey: queryKeys.contracts });
@@ -150,6 +176,12 @@ export function useSaveContract() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.contracts });
       qc.invalidateQueries({ queryKey: queryKeys.seaTime });
+      // Trip reminders follow the dates; a signed-off trip's checklist is dropped.
+      // Rescheduling reminders can take seconds: do it in the background so saving returns at once.
+      void resyncNotifications().then(() => {
+        qc.invalidateQueries({ queryKey: queryKeys.notifications });
+        qc.invalidateQueries({ queryKey: ['trip-checklist'] });
+      });
     },
   });
 }
@@ -157,11 +189,16 @@ export function useSaveContract() {
 export function useSignOffContract() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, date }: { id: string; date: string }) =>
-      VesselsRepo.signOffContract(id, date),
+    mutationFn: ({ id, date }: { id: string; date: string }) => VesselsRepo.signOffContract(id, date),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.contracts });
       qc.invalidateQueries({ queryKey: queryKeys.seaTime });
+      // Trip reminders follow the dates; a signed-off trip's checklist is dropped.
+      // Rescheduling reminders can take seconds: do it in the background so saving returns at once.
+      void resyncNotifications().then(() => {
+        qc.invalidateQueries({ queryKey: queryKeys.notifications });
+        qc.invalidateQueries({ queryKey: ['trip-checklist'] });
+      });
     },
   });
 }
@@ -173,6 +210,12 @@ export function useDeleteContract() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.contracts });
       qc.invalidateQueries({ queryKey: queryKeys.seaTime });
+      // Trip reminders follow the dates; a signed-off trip's checklist is dropped.
+      // Rescheduling reminders can take seconds: do it in the background so saving returns at once.
+      void resyncNotifications().then(() => {
+        qc.invalidateQueries({ queryKey: queryKeys.notifications });
+        qc.invalidateQueries({ queryKey: ['trip-checklist'] });
+      });
     },
   });
 }
@@ -181,16 +224,31 @@ export function useDocuments() {
   return useQuery({ queryKey: queryKeys.documents, queryFn: () => DocumentsRepo.listDocuments() });
 }
 
+export function useDocumentSort() {
+  return useQuery({ queryKey: queryKeys.documentSort, queryFn: RanksRepo.getDocumentSort, staleTime: Infinity });
+}
+
+/** Saves the list order; the cache updates at once so the button and list respond instantly. */
+export function useSaveDocumentSort() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sort: DocumentSort) => RanksRepo.saveDocumentSort(sort),
+    onMutate: (sort) => {
+      qc.setQueryData(queryKeys.documentSort, sort);
+    },
+    onError: () => qc.invalidateQueries({ queryKey: queryKeys.documentSort }),
+  });
+}
+
 export function useSaveDocument() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: Omit<Document, 'id' | 'createdAt'> & { id?: string }) =>
-      DocumentsRepo.saveDocument(input),
-    onSuccess: async () => {
-      // Reconcile reminders immediately so a just-added expired / in-window doc alerts now.
-      await resyncDocumentNotifications();
+    mutationFn: (input: Omit<Document, 'id' | 'createdAt'> & { id?: string }) => DocumentsRepo.saveDocument(input),
+    onSuccess: () => {
+      // Reconcile reminders right away so a just-added expired / in-window doc alerts now.
       qc.invalidateQueries({ queryKey: queryKeys.documents });
-      qc.invalidateQueries({ queryKey: queryKeys.notifications });
+      // Rescheduling reminders can take seconds: do it in the background so saving returns at once.
+      void resyncDocumentNotifications().then(() => qc.invalidateQueries({ queryKey: queryKeys.notifications }));
     },
   });
 }
@@ -199,10 +257,10 @@ export function useDeleteDocument() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => DocumentsRepo.deleteDocument(id),
-    onSuccess: async () => {
-      await resyncDocumentNotifications();
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.documents });
-      qc.invalidateQueries({ queryKey: queryKeys.notifications });
+      // Rescheduling reminders can take seconds: do it in the background so saving returns at once.
+      void resyncDocumentNotifications().then(() => qc.invalidateQueries({ queryKey: queryKeys.notifications }));
     },
   });
 }
@@ -214,8 +272,23 @@ export function useDocumentTypes() {
 export function useCreateDocumentType() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) => DocumentsRepo.createDocumentType(name),
+    mutationFn: (input: string | { name: string; icon: string | null; color: string | null }) =>
+      typeof input === 'string'
+        ? DocumentsRepo.createDocumentType(input)
+        : DocumentsRepo.createDocumentType(input.name, input.icon, input.color),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.documentTypes }),
+  });
+}
+
+export function useUpdateDocumentType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: string; name: string; icon: string | null; color: string | null }) =>
+      DocumentsRepo.updateDocumentType(id, patch),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.documentTypes });
+      void qc.invalidateQueries({ queryKey: queryKeys.documents });
+    },
   });
 }
 
@@ -241,8 +314,7 @@ export function useDocumentFiles(documentId: string | null) {
 export function useAddDocumentFile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (file: Omit<DocumentFile, 'id' | 'createdAt'>) =>
-      DocumentsRepo.saveDocumentFile(file),
+    mutationFn: (file: Omit<DocumentFile, 'id' | 'createdAt'>) => DocumentsRepo.saveDocumentFile(file),
     onSuccess: (_data, file) => {
       qc.invalidateQueries({ queryKey: queryKeys.documentFiles(file.documentId) });
     },
@@ -280,9 +352,8 @@ export function useSeaTimeRecords() {
 export function useSaveSeaTimeRecord() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (
-      input: Omit<SeaTimeRecord, 'id' | 'createdAt'> & { id?: string }
-    ) => SeaTimeRepo.saveSeaTimeRecord(input),
+    mutationFn: (input: Omit<SeaTimeRecord, 'id' | 'createdAt'> & { id?: string }) =>
+      SeaTimeRepo.saveSeaTimeRecord(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.seaTimeRecords });
       qc.invalidateQueries({ queryKey: queryKeys.seaTime });
@@ -354,7 +425,11 @@ export function useDismissNotification() {
   });
 }
 
-export function useTripFiles(filter: { contractId?: string | null; seaTimeId?: string | null; kind?: TripFilesRepo.TripFileKind }) {
+export function useTripFiles(filter: {
+  contractId?: string | null;
+  seaTimeId?: string | null;
+  kind?: TripFilesRepo.TripFileKind;
+}) {
   const key = `${filter.contractId ?? ''}|${filter.seaTimeId ?? ''}|${filter.kind ?? ''}`;
   return useQuery({
     queryKey: queryKeys.tripFiles(key),
@@ -370,8 +445,7 @@ export function useTripFiles(filter: { contractId?: string | null; seaTimeId?: s
 export function useAddTripFile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (file: Omit<TripFilesRepo.TripFile, 'id' | 'createdAt'>) =>
-      TripFilesRepo.saveTripFile(file),
+    mutationFn: (file: Omit<TripFilesRepo.TripFile, 'id' | 'createdAt'>) => TripFilesRepo.saveTripFile(file),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['trip-files'] });
     },
@@ -388,5 +462,124 @@ export function useDeleteTripFile() {
   });
 }
 
+/** Opening a trip reminder marks that contract's reminders read and clears its banners. */
+export function useMarkContractNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (contractId: string) => {
+      await NotificationsRepo.markReadForContract(contractId);
+      await clearDeliveredForContract(contractId);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
+  });
+}
+
+export function useChecklistItems() {
+  return useQuery({ queryKey: queryKeys.checklist, queryFn: ChecklistRepo.listChecklistItems });
+}
+
+export function useAddChecklistItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { parentId: string | null; name: string; quantity: number }) =>
+      ChecklistRepo.addChecklistItem(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.checklist }),
+  });
+}
+
+export function useUpdateChecklistItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: string; name: string | null; quantity: number }) =>
+      ChecklistRepo.updateChecklistItem(id, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.checklist }),
+  });
+}
+
+export function useDeleteChecklistItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => ChecklistRepo.deleteChecklistItem(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.checklist });
+      qc.invalidateQueries({ queryKey: ['trip-checklist'] });
+    },
+  });
+}
+
+export function useTripChecklist(contractId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.tripChecklist(contractId ?? 'none'),
+    queryFn: () => ChecklistRepo.listTripChecklist(contractId!),
+    enabled: !!contractId,
+  });
+}
+
+type TripMarksInput = { itemKeys: string[]; column: 'out' | 'back'; packed: boolean };
+
+/** Ticks / unticks entries of a trip. The cache changes on the tap itself (so ticks are instant);
+ *  the database writes follow in the background, one after another. */
+export function useSetTripChecklistMarks(contractId: string) {
+  const qc = useQueryClient();
+  const key = queryKeys.tripChecklist(contractId);
+  const write = useMutation({
+    mutationFn: (input: TripMarksInput) =>
+      ChecklistRepo.setTripChecklistMarks(contractId, input.itemKeys, input.column, input.packed),
+    // Rolling back to a snapshot would also undo later taps; reload what was stored instead.
+    onError: () => qc.invalidateQueries({ queryKey: key }),
+  });
+  const mutate = (input: TripMarksInput) => {
+    // A refetch still in flight would land an older state over this tap.
+    void qc.cancelQueries({ queryKey: key });
+    const prev = qc.getQueryData<TripChecklistMark[]>(key) ?? [];
+    const next = new Map(prev.map((m) => [m.itemKey, m]));
+    for (const itemKey of input.itemKeys) {
+      const m = next.get(itemKey) ?? { itemKey, packedOut: false, packedBack: false };
+      next.set(
+        itemKey,
+        input.column === 'out' ? { ...m, packedOut: input.packed } : { ...m, packedBack: input.packed },
+      );
+    }
+    qc.setQueryData(key, [...next.values()]);
+    write.mutate(input);
+  };
+  return { mutate };
+}
+
+export function useCalendarNotes() {
+  return useQuery({ queryKey: queryKeys.calendarNotes, queryFn: NotesRepo.listCalendarNotes });
+}
+
+/** Saves a note and (re)schedules its reminder before resolving. */
+export function useSaveCalendarNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Parameters<typeof NotesRepo.saveCalendarNote>[0]) => {
+      const note = await NotesRepo.saveCalendarNote(input);
+      void resyncNotifications().then(() => qc.invalidateQueries({ queryKey: queryKeys.notifications }));
+      return note;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.calendarNotes });
+      qc.invalidateQueries({ queryKey: queryKeys.notifications });
+    },
+  });
+}
+
+export function useDeleteCalendarNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await NotesRepo.deleteCalendarNote(id);
+      void resyncNotifications().then(() => qc.invalidateQueries({ queryKey: queryKeys.notifications }));
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.calendarNotes });
+      qc.invalidateQueries({ queryKey: queryKeys.notifications });
+    },
+  });
+}
+
 export type { ContractListRow, DocumentListRow };
+export type { ChecklistItem };
 export type { AppNotification };

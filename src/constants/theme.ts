@@ -68,3 +68,23 @@ export const Typography = {
   caption: { fontSize: 13, fontWeight: '400' as const },
   metric: { fontSize: 28, fontWeight: '700' as const },
 } as const;
+
+/** Ocean-blue palette of the packing checklist. */
+export const Ocean = {
+  light: {
+    deep: '#023E8A',
+    main: '#0077B6',
+    bright: '#00B4D8',
+    soft: '#CAF0F8',
+    mist: '#EAF8FC',
+    line: '#BDE7F3',
+  },
+  dark: {
+    deep: '#03264A',
+    main: '#48CAE4',
+    bright: '#90E0EF',
+    soft: '#0E3B52',
+    mist: '#0B2533',
+    line: '#1D4B63',
+  },
+} as const;

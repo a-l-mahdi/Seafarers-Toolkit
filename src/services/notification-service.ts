@@ -1,11 +1,14 @@
 import * as Notifications from 'expo-notifications';
 import { SchedulableTriggerInputTypes } from 'expo-notifications';
 import { Platform } from 'react-native';
-import type { DocumentListRow } from '@/database/repositories';
+import type { ContractListRow, DocumentListRow } from '@/database/repositories';
 import { listDocuments } from '@/database/repositories/documents-repository';
+import { listContracts } from '@/database/repositories/vessels-repository';
+import { pruneFinishedTripChecklists } from '@/database/repositories/checklist-repository';
+import { listCalendarNotes } from '@/database/repositories/calendar-notes-repository';
 import { isoNow, todayISO } from '@/utils/date';
 import { documentStatus } from '@/domain/document-status';
-import type { DocumentStatusType } from '@/types/domain';
+import type { CalendarNote, DocumentStatusType } from '@/types/domain';
 import * as NotificationsRepo from '@/database/repositories/notifications-repository';
 import { getNotificationPrefs } from '@/database/repositories/ranks-repository';
 import i18n from '@/i18n';
@@ -157,11 +160,9 @@ function eventsFor(doc: DocumentListRow): DocEvent[] {
  *    that a document has already moved past is skipped so we don't, say, fire a
  *    renewal reminder for a document that is already expired.
  */
-export async function syncNotifications(documents: DocumentListRow[]): Promise<void> {
+export async function syncNotifications(documents: DocumentListRow[], contracts?: ContractListRow[]): Promise<void> {
   const prefs = await getNotificationPrefs();
-  if (!prefs.documentExpiry) return;
-  const today = todayISO();
-  const now = new Date();
+  const allContracts = contracts ?? (await listContracts());
 
   // Rebuild the OS schedule from scratch so edits/deletes never leave stale alarms.
   try {
@@ -169,6 +170,16 @@ export async function syncNotifications(documents: DocumentListRow[]): Promise<v
   } catch {
     // best-effort
   }
+  if (prefs.documentExpiry) await syncDocumentEvents(documents);
+  if (prefs.contractEnding) await syncContractEvents(allContracts);
+  // Note reminders were asked for explicitly, so they always run.
+  await syncNoteEvents(await listCalendarNotes());
+  await pruneFinishedTripChecklists();
+}
+
+async function syncDocumentEvents(documents: DocumentListRow[]): Promise<void> {
+  const today = todayISO();
+  const now = new Date();
   await NotificationsRepo.pruneDocumentNotifications(documents.map((d) => d.id));
 
   for (const doc of documents) {
@@ -178,7 +189,7 @@ export async function syncNotifications(documents: DocumentListRow[]): Promise<v
         warningThresholdDays: doc.warningThresholdDays,
         validThresholdDays: doc.validThresholdDays,
       },
-      now
+      now,
     );
 
     for (const ev of eventsFor(doc)) {
@@ -228,6 +239,203 @@ export async function syncNotifications(documents: DocumentListRow[]): Promise<v
   }
 }
 
+// --- trip reminders (contract start / end) --------------------------------
+
+export type TripReminder = 'departure' | 'return';
+
+interface ContractEvent {
+  reminder: TripReminder;
+  /** Dedupe key; carries the date so moving the date creates a fresh reminder. */
+  type: string;
+  /** The join / sign-off day the reminder is about. */
+  eventISO: string;
+  fireAt: Date;
+  title: string;
+  body: string;
+}
+
+/** Local 12:00 on the day before `iso`. */
+function noonDayBefore(iso: string): Date {
+  return new Date(`${isoMinusDays(iso, 1)}T12:00:00`);
+}
+
+/** A trip gets a packing reminder at noon the day before it starts and the day
+ *  before its expected sign-off, until it is signed off. */
+function contractEventsFor(c: ContractListRow): ContractEvent[] {
+  if (c.actualSignOff) return [];
+  const vessel = c.vesselName ?? '—';
+  const returnISO = c.expectedSignOff;
+  return [
+    {
+      reminder: 'departure',
+      type: `departure_${c.joinDate}`,
+      eventISO: c.joinDate,
+      fireAt: noonDayBefore(c.joinDate),
+      title: i18n.t('notifications.msg.departureTitle'),
+      body: i18n.t('notifications.msg.departure', { vessel }),
+    },
+    {
+      reminder: 'return',
+      type: `return_${returnISO}`,
+      eventISO: returnISO,
+      fireAt: noonDayBefore(returnISO),
+      title: i18n.t('notifications.msg.returnTitle'),
+      body: i18n.t('notifications.msg.return', { vessel }),
+    },
+  ];
+}
+
+async function scheduleContractAt(ev: ContractEvent, contractId: string, fireDate: Date): Promise<void> {
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: ev.title,
+        body: ev.body,
+        sound: 'default',
+        data: {
+          contractId,
+          reminder: ev.reminder,
+          eventType: 'contract',
+          eventId: contractId,
+          notificationType: ev.type,
+        },
+      },
+      trigger: { type: SchedulableTriggerInputTypes.DATE, date: fireDate, channelId: CHANNEL_ID },
+    });
+  } catch {
+    // best-effort
+  }
+}
+
+/**
+ * Same model as documents: future reminders are scheduled with a hidden pending
+ * row; a reminder whose time passed while away is surfaced in the centre; one
+ * that is due for a trip still ahead (e.g. the trip was added the evening before)
+ * fires now, once. Reminders for days already gone are never raised late.
+ */
+async function syncContractEvents(contracts: ContractListRow[], now: Date = new Date()): Promise<void> {
+  const current = new Map<string, string[]>();
+  for (const c of contracts)
+    current.set(
+      c.id,
+      contractEventsFor(c).map((e) => e.type),
+    );
+  await NotificationsRepo.pruneEventNotifications('contract', current);
+  const today = todayISO(now);
+
+  for (const c of contracts) {
+    for (const ev of contractEventsFor(c)) {
+      const existing = await NotificationsRepo.getNotification('contract', c.id, ev.type);
+      if (ev.fireAt.getTime() > now.getTime()) {
+        await scheduleContractAt(ev, c.id, ev.fireAt);
+        if (!existing) {
+          await NotificationsRepo.upsertNotification({
+            eventType: 'contract',
+            eventId: c.id,
+            notificationType: ev.type,
+            title: ev.title,
+            body: ev.body,
+            scheduledAt: ev.fireAt.toISOString(),
+            sentAt: null,
+          });
+        }
+        continue;
+      }
+      if (existing) {
+        if (!existing.sentAt) await NotificationsRepo.markDelivered(existing.id, ev.fireAt.toISOString());
+        continue;
+      }
+      if (today >= ev.eventISO) continue;
+      const inserted = await NotificationsRepo.upsertNotification({
+        eventType: 'contract',
+        eventId: c.id,
+        notificationType: ev.type,
+        title: ev.title,
+        body: ev.body,
+        scheduledAt: null,
+        sentAt: isoNow(),
+      });
+      if (inserted) await scheduleContractAt(ev, c.id, new Date(Date.now() + 1000));
+    }
+  }
+}
+
+// --- calendar note reminders ----------------------------------------------
+
+/** The moment a note reminder fires (local date + time), or null if it has none. */
+export function noteFireAt(note: Pick<CalendarNote, 'date' | 'time' | 'remind'>): Date | null {
+  if (!note.remind || !note.time || !/^\d{2}:\d{2}$/.test(note.time)) return null;
+  const at = new Date(`${note.date}T${note.time}:00`);
+  return Number.isNaN(at.getTime()) ? null : at;
+}
+
+const noteType = (note: CalendarNote) => `note_${note.date}T${note.time}`;
+
+/**
+ * Note reminders fire at the note's own date and time. A future reminder is
+ * scheduled with a hidden pending row; once its time passes the row shows in
+ * the centre. A reminder whose time had already passed when it was saved is
+ * never raised late.
+ */
+async function syncNoteEvents(notes: CalendarNote[], now: Date = new Date()): Promise<void> {
+  const current = new Map<string, string[]>();
+  for (const n of notes) current.set(n.id, noteFireAt(n) ? [noteType(n)] : []);
+  await NotificationsRepo.pruneEventNotifications('note', current);
+
+  for (const note of notes) {
+    const fireAt = noteFireAt(note);
+    if (!fireAt) continue;
+    const type = noteType(note);
+    const title = i18n.t('notifications.msg.noteTitle');
+    const body = note.text;
+    const existing = await NotificationsRepo.getNotification('note', note.id, type);
+    if (fireAt.getTime() > now.getTime()) {
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title,
+            body,
+            sound: 'default',
+            data: { noteId: note.id, eventType: 'note', eventId: note.id, notificationType: type },
+          },
+          trigger: { type: SchedulableTriggerInputTypes.DATE, date: fireAt, channelId: CHANNEL_ID },
+        });
+      } catch {
+        // best-effort
+      }
+      if (existing) {
+        await NotificationsRepo.updatePendingContent(existing.id, title, body);
+      } else {
+        await NotificationsRepo.upsertNotification({
+          eventType: 'note',
+          eventId: note.id,
+          notificationType: type,
+          title,
+          body,
+          scheduledAt: fireAt.toISOString(),
+          sentAt: null,
+        });
+      }
+      continue;
+    }
+    if (existing && !existing.sentAt) await NotificationsRepo.markDelivered(existing.id, fireAt.toISOString());
+  }
+}
+
+/** Removes a contract's delivered banners from the status bar. */
+export async function clearDeliveredForContract(contractId: string): Promise<void> {
+  try {
+    const presented = await Notifications.getPresentedNotificationsAsync();
+    for (const n of presented) {
+      if (n.request.content.data?.contractId === contractId) {
+        await Notifications.dismissNotificationAsync(n.request.identifier);
+      }
+    }
+  } catch {
+    // best-effort
+  }
+}
+
 /** Removes any delivered banners for one document from the status bar (called when
  *  the user opens that document's alert). */
 export async function clearDeliveredForDocument(documentId: string): Promise<void> {
@@ -243,12 +451,43 @@ export async function clearDeliveredForDocument(documentId: string): Promise<voi
   }
 }
 
-/** Lists documents and reconciles notifications — call after any document change. */
-export async function resyncDocumentNotifications(): Promise<void> {
+let resyncing: Promise<void> | null = null;
+let resyncAgain = false;
+
+/** Reloads documents and contracts and reconciles every reminder — call after
+ *  any document or contract change. */
+export function resyncNotifications(): Promise<void> {
+  // Runs in the background after saves; overlapping calls are folded into one more
+  // pass after the current one, so two reschedules never race each other.
+  if (resyncing) {
+    resyncAgain = true;
+    return resyncing;
+  }
+  resyncing = (async () => {
+    do {
+      resyncAgain = false;
+      try {
+        const [docs, contracts] = await Promise.all([listDocuments(), listContracts()]);
+        await syncNotifications(docs, contracts);
+      } catch {
+        // notifications sync is best-effort
+      }
+    } while (resyncAgain);
+    resyncing = null;
+  })();
+  return resyncing;
+}
+
+export const resyncDocumentNotifications = resyncNotifications;
+
+/** Asks for the notification permission if it is not granted yet; true when banners can show. */
+export async function ensureNotificationPermission(): Promise<boolean> {
   try {
-    const docs = await listDocuments();
-    await syncNotifications(docs);
+    const existing = await Notifications.getPermissionsAsync();
+    if (existing.granted) return true;
+    if (!existing.canAskAgain) return false;
+    return (await Notifications.requestPermissionsAsync()).granted;
   } catch {
-    // notifications sync is best-effort
+    return false;
   }
 }

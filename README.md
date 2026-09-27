@@ -69,7 +69,7 @@ Release builds are plain local Gradle builds against your own Android SDK. The J
    keyPassword=<your key password>
    ```
 
-4. `expo prebuild` generates a template `build.gradle` that signs releases with the debug key and builds a single universal APK. Re-apply the release signing and the ABI splits inside the `android { }` block of `android/app/build.gradle`:
+4. `expo prebuild` generates a template `build.gradle` that signs releases with the debug key. Re-apply the release signing and the ARM architecture filter inside the `android { }` block of `android/app/build.gradle`:
 
    ```gradle
    signingConfigs {
@@ -99,23 +99,12 @@ Release builds are plain local Gradle builds against your own Android SDK. The J
        }
    }
 
-   // ABI splits: one APK per architecture + a universal APK
-   splits {
-       abi {
-           reset()
-           enable true
-           universalApk true
-           include "arm64-v8a", "armeabi-v7a"
-       }
-   }
-
-   // Friendly output names: SeafarersToolkit-v<version>-<abi>-release.apk
-   applicationVariants.all { variant ->
-       variant.outputs.all { output ->
-           def abi = output.getFilter(com.android.build.OutputFile.ABI) ?: "universal"
-           outputFileName = "SeafarersToolkit-v${variant.versionName}-${abi}-release.apk"
-       }
-   }
+    // Friendly output name: SeafarersToolkit-v<version>-release.apk
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "SeafarersToolkit-v${variant.versionName}-release.apk"
+        }
+    }
    ```
 
 ### Building
@@ -123,29 +112,25 @@ Release builds are plain local Gradle builds against your own Android SDK. The J
 From the `android/` folder:
 
 ```bash
-./gradlew :app:assembleRelease   # APKs -> app/build/outputs/apk/release/
+./gradlew :app:assembleRelease   # APK -> app/build/outputs/apk/release/
 ./gradlew :app:bundleRelease     # AAB for Play Store -> app/build/outputs/bundle/release/
 ```
 
-`assembleRelease` produces three APKs:
-
-| APK | Devices |
-| --- | --- |
-| `SeafarersToolkit-v<version>-arm64-v8a-release.apk` | 64-bit ARM — most modern phones |
-| `SeafarersToolkit-v<version>-armeabi-v7a-release.apk` | 32-bit ARM — older devices |
-| `SeafarersToolkit-v<version>-universal-release.apk` | All architectures — biggest, works everywhere |
+`assembleRelease` produces one APK containing both ARM architectures
+(`arm64-v8a` + `armeabi-v7a`, restricted via `ndk.abiFilters` in
+`defaultConfig`), named `SeafarersToolkit-v<version>-release.apk`.
 
 Verify the signature (should be your key, not `androiddebugkey`):
 
 ```bash
-$ANDROID_HOME/build-tools/36.0.0/apksigner verify --print-certs app/build/outputs/apk/release/*arm64-v8a*.apk
+$ANDROID_HOME/build-tools/36.0.0/apksigner verify --print-certs app/build/outputs/apk/release/*.apk
 ```
 
 ### Notes
 
 - **Secrets stay local:** `release.keystore`, `release-keystore.properties`, and `android/local.properties` are git-ignored. Never commit them.
 - **Versioning:** set `version` and `android.versionCode` in `app.json`. With a freshly prebuilt `android/` folder Gradle picks them up automatically; if you keep a hand-maintained `android/` folder, mirror the same values in `android/app/build.gradle` (`versionCode` / `versionName`).
-- **Do not re-run `expo prebuild` on an existing hand-maintained `android/` folder** — it overwrites the signing/splits config above. See `store/release-checklist.md` for the full list of hand edits.
+- **Do not re-run `expo prebuild` on an existing hand-maintained `android/` folder** — it overwrites the signing/ABI config above. See `store/release-checklist.md` for the full list of hand edits.
 
 ## Project structure
 

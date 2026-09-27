@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge, Card, EmptyState, FieldRow } from '@/components/ui/primitives';
+import { TelegramHeader, useFloatingHeaderPadding } from '@/components/telegram-header';
 import { FileGallery, type DisplayFile } from '@/components/file-gallery';
 import { useDocumentFiles, useDocuments, useMarkDocumentNotificationsRead } from '@/hooks/queries';
 import { useFormattedDate } from '@/hooks/use-date-format';
@@ -23,6 +25,7 @@ const STATUS_TONE = {
 export default function DocumentAlertScreen() {
   const { t } = useTranslation();
   const colors = useTheme();
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { data: documents } = useDocuments();
   const markRead = useMarkDocumentNotificationsRead();
@@ -37,14 +40,7 @@ export default function DocumentAlertScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: doc?.name ?? t('documents.title'),
-          headerTintColor: colors.text,
-          headerStyle: { backgroundColor: colors.background },
-        }}
-      />
+      <TelegramHeader title={doc?.name ?? t('documents.title')} onBack={() => router.back()} />
       {doc ? <AlertBody doc={doc} /> : <EmptyState title={t('documents.notFound')} />}
     </View>
   );
@@ -54,6 +50,7 @@ function AlertBody({ doc }: { doc: DocumentListRow }) {
   const { t } = useTranslation();
   const colors = useTheme();
   const insets = useSafeAreaInsets();
+  const headerPad = useFloatingHeaderPadding();
   const formatDate = useFormattedDate();
   const { data: files } = useDocumentFiles(doc.id);
 
@@ -81,7 +78,7 @@ function AlertBody({ doc }: { doc: DocumentListRow }) {
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={[styles.content, { paddingBottom: Spacing.xxl + insets.bottom }]}
+      contentContainerStyle={[styles.content, { paddingTop: headerPad, paddingBottom: Spacing.xxl + insets.bottom }]}
     >
       <View style={styles.statusRow}>
         <Badge label={t(`documents.status.${status}`)} tone={STATUS_TONE[status]} />

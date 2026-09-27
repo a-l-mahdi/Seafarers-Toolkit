@@ -15,15 +15,47 @@ export function isTopRank(rankId: string | null, ranks: RankLike[]): boolean {
   return !ranks.some((r) => r.department === current.department && r.level < current.level);
 }
 
-/** The next rank in the same department, one level above the current one. */
+/**
+ * The promotion target: the closest more-senior rank in the same department.
+ * Level 1 is the most senior, so "senior" means a LOWER level (ETO 2 → ETO 1).
+ */
 export function nextRankId(rankId: string | null, ranks: RankLike[]): string | null {
   if (!rankId) return null;
   const current = ranks.find((r) => r.id === rankId);
   if (!current) return null;
-  const above = ranks
-    .filter((r) => r.department === current.department && r.level > current.level)
-    .sort((a, b) => a.level - b.level);
-  return above[0]?.id ?? null;
+  const senior = ranks
+    .filter((r) => r.department === current.department && r.level < current.level)
+    .sort((a, b) => b.level - a.level);
+  return senior[0]?.id ?? null;
+}
+
+/** Ranks more senior than `rankId` in its department, most junior first (valid "next rank" picks). */
+export function seniorRanks<T extends RankLike>(rankId: string | null, ranks: T[]): T[] {
+  const current = rankId ? ranks.find((r) => r.id === rankId) : null;
+  if (!current) return [];
+  return ranks
+    .filter((r) => r.department === current.department && r.level < current.level)
+    .sort((a, b) => b.level - a.level);
+}
+
+/** Ranks of one department (all ranks when no department is chosen yet). */
+export function ranksForDepartment<T extends RankLike>(ranks: T[], department: string | null): T[] {
+  return department ? ranks.filter((r) => r.department === department) : ranks;
+}
+
+/**
+ * The sailor's next rank: the one picked in the profile when it is still a valid
+ * promotion (same department, more senior), otherwise the next rank on the ladder.
+ */
+export function resolveNextRankId(
+  currentRankId: string | null,
+  preferredNextId: string | null,
+  ranks: RankLike[]
+): string | null {
+  if (preferredNextId && seniorRanks(currentRankId, ranks).some((r) => r.id === preferredNextId)) {
+    return preferredNextId;
+  }
+  return nextRankId(currentRankId, ranks);
 }
 
 /** Promotion sea time in days from the rank's configured months (1 month ≈ 30.44 days). */
@@ -50,7 +82,9 @@ export function estimatedQualificationDate(
   if (remainingDays <= 0) return null;
   if (!activeContractJoinDate || !activeContractExpectedSignOff) return null;
   const today = todayISO(now);
-  // Prediction only makes sense while the contract is running.
+  // Prediction only makes sense while the contract is running (or still ahead:
+  // sea time then starts counting on its join date).
   if (today > activeContractExpectedSignOff) return null;
-  return addDaysISO(today, remainingDays);
+  const from = today > activeContractJoinDate ? today : activeContractJoinDate;
+  return addDaysISO(from, remainingDays);
 }

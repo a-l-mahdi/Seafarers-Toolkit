@@ -60,7 +60,7 @@ export function useSaveProfile() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: Omit<Profile, 'id' | 'updatedAt'>) => ProfileRepo.saveProfile(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.profile }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.profile }),
   });
 }
 
@@ -72,7 +72,7 @@ export function useSaveCvProfile() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CvProfile) => CvRepo.saveCvProfile(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.cvProfile }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.cvProfile }),
   });
 }
 
@@ -89,7 +89,7 @@ export function useCreateRank() {
       level: number;
       promotionMonths?: number | null;
     }) => RanksRepo.createRank(input.department, input.name, input.level, input.promotionMonths ?? 12),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ranks }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.ranks }),
   });
 }
 
@@ -97,7 +97,7 @@ export function useUpdateRank() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (rank: Rank) => RanksRepo.updateRank(rank),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ranks }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.ranks }),
   });
 }
 
@@ -106,15 +106,39 @@ export function useUpdateRankInsignia() {
   return useMutation({
     mutationFn: ({ id, insignia }: { id: string; insignia: Rank['insignia'] }) =>
       RanksRepo.updateRankInsignia(id, insignia),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ranks }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.ranks }),
   });
 }
 
+/** Moves a rank up / down: swapped in the cache on the tap, written in order (rapid taps must not overlap). */
 export function useMoveRank() {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: ['move-rank'],
+    scope: { id: 'move-rank' },
     mutationFn: ({ id, dir }: { id: string; dir: -1 | 1 }) => RanksRepo.moveRank(id, dir),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ranks }),
+    onMutate: ({ id, dir }) => {
+      void qc.cancelQueries({ queryKey: queryKeys.ranks });
+      const ranks = qc.getQueryData<Rank[]>(queryKeys.ranks);
+      const rank = ranks?.find((r) => r.id === id);
+      if (!ranks || !rank) return;
+      // Same order as the repository: level, then name.
+      const siblings = ranks
+        .filter((r) => r.department === rank.department)
+        .sort((a, b) => a.level - b.level || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+      const other = siblings[siblings.indexOf(rank) + dir];
+      if (!other) return;
+      qc.setQueryData<Rank[]>(
+        queryKeys.ranks,
+        ranks.map((r) =>
+          r.id === rank.id ? { ...r, level: other.level } : r.id === other.id ? { ...r, level: rank.level } : r,
+        ),
+      );
+    },
+    // Reload once the last queued move is stored.
+    onSettled: () => {
+      if (qc.isMutating({ mutationKey: ['move-rank'] }) <= 1) void qc.invalidateQueries({ queryKey: queryKeys.ranks });
+    },
   });
 }
 
@@ -276,7 +300,7 @@ export function useCreateDocumentType() {
       typeof input === 'string'
         ? DocumentsRepo.createDocumentType(input)
         : DocumentsRepo.createDocumentType(input.name, input.icon, input.color),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.documentTypes }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.documentTypes }),
   });
 }
 
@@ -380,7 +404,7 @@ export function useSaveLeaveSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (settings: LeaveSettings) => RanksRepo.saveLeaveSettings(settings),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.leaveSettings }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.leaveSettings }),
   });
 }
 
@@ -392,7 +416,7 @@ export function useMarkNotificationRead() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => NotificationsRepo.markRead(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.notifications }),
   });
 }
 
@@ -405,7 +429,7 @@ export function useMarkDocumentNotificationsRead() {
       await NotificationsRepo.markReadForDocument(documentId);
       await clearDeliveredForDocument(documentId);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.notifications }),
   });
 }
 
@@ -413,7 +437,7 @@ export function useMarkAllNotificationsRead() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => NotificationsRepo.markAllRead(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.notifications }),
   });
 }
 
@@ -421,7 +445,7 @@ export function useDismissNotification() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => NotificationsRepo.dismiss(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.notifications }),
   });
 }
 
@@ -470,7 +494,7 @@ export function useMarkContractNotificationsRead() {
       await NotificationsRepo.markReadForContract(contractId);
       await clearDeliveredForContract(contractId);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.notifications }),
   });
 }
 
@@ -483,7 +507,7 @@ export function useAddChecklistItem() {
   return useMutation({
     mutationFn: (input: { parentId: string | null; name: string; quantity: number }) =>
       ChecklistRepo.addChecklistItem(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.checklist }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.checklist }),
   });
 }
 
@@ -492,7 +516,7 @@ export function useUpdateChecklistItem() {
   return useMutation({
     mutationFn: ({ id, ...input }: { id: string; name: string | null; quantity: number }) =>
       ChecklistRepo.updateChecklistItem(id, input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.checklist }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.checklist }),
   });
 }
 

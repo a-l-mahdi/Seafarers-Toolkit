@@ -13,10 +13,9 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import * as Updates from 'expo-updates';
 import i18n, { isRTL } from '@/i18n';
 import { openDatabase } from '@/database/db';
-import { initNotifications, syncNotifications } from '@/services/notification-service';
+import { initNotifications, resyncNotifications } from '@/services/notification-service';
 import { markDeliveredByKey, markReadByKey } from '@/database/repositories/notifications-repository';
 import { useSettingsStore } from '@/store/settings-store';
-import { listDocuments } from '@/database/repositories/documents-repository';
 import { SavedToastHost } from '@/components/saved-toast';
 
 /** The stored key of a trip / note reminder carried in its notification data. */
@@ -79,13 +78,8 @@ export default function RootLayout() {
       await openDatabase();
       setDbReady(true);
       await initNotifications();
-      try {
-        const docs = await listDocuments();
-        await syncNotifications(docs);
-        void queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      } catch {
-        // notifications sync is best-effort
-      }
+      // Shares the one-at-a-time resync, so it never overlaps a save's reschedule.
+      void resyncNotifications().then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] }));
     })();
   }, [hydrate, queryClient]);
 

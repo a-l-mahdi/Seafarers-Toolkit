@@ -318,7 +318,7 @@ function BackupCard() {
         }
         // Schedule the restored documents', trips' and notes' reminders now
         // (in the restored language) instead of waiting for the next launch.
-        await resyncNotifications();
+        void resyncNotifications().then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] }));
         setStatus({ text: t('settings.restoreDone', { count, files }), tone: 'success' });
       } catch (err) {
         setStatus({

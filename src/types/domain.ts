@@ -199,6 +199,28 @@ export interface CvEducation {
  * of the CV (name, contact, certificates, sea service) is pulled at export time
  * from the profile, documents and contracts, so nothing is entered twice.
  */
+export interface CvNextOfKin {
+  id: string;
+  name: string;
+  relationship: string;
+  phone: string;
+  address: string;
+}
+
+export interface CvBankAccount {
+  id: string;
+  bankName: string;
+  accountHolder: string;
+  accountNumber: string;
+  branchCode: string;
+  swift: string;
+  iban: string;
+  bankAddress: string;
+}
+
+/** The CV's form cards; each can be left out of the CV. */
+export type CvSection = 'application' | 'personal' | 'ids' | 'documents' | 'education' | 'nok' | 'bank' | 'health';
+
 export interface CvProfile {
   // Personal / physical
   middleName: string;
@@ -215,21 +237,12 @@ export interface CvProfile {
   // Documents (passport, seaman's book, CoC) — not duplicated here.
   nearestAirport: string;
   languages: string;
-  // Next of kin
-  nokName: string;
-  nokRelationship: string;
-  nokPhone: string;
-  nokAddress: string;
+  // Next of kin (up to three)
+  nextOfKin: CvNextOfKin[];
   // Union membership
   unionMembership: string;
-  // Bank
-  bankName: string;
-  bankAccountHolder: string;
-  bankAccountNumber: string;
-  bankAddress: string;
-  bankBranchCode: string;
-  bankSwift: string;
-  bankIban: string;
+  // Bank accounts (up to three)
+  bankAccounts: CvBankAccount[];
   // Health declarations
   healthMarineAccident: boolean;
   healthDisability: boolean;
@@ -246,6 +259,8 @@ export interface CvProfile {
   education: CvEducation[];
   // Documents the seafarer chose to EXCLUDE from the CV (empty = include all).
   excludedDocumentIds: string[];
+  // Sections the seafarer left out of the CV (empty = all shown).
+  hiddenSections: CvSection[];
 }
 
 export interface LeaveSettings {

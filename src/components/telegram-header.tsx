@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react';
-import { I18nManager, Pressable, StyleSheet, View } from 'react-native';
+import { I18nManager, StyleSheet, View } from 'react-native';
+// Gesture-handler's Pressable takes part in native touch arbitration, so the
+// gesture-handler scroll views the header floats over (forms) can never take a
+// tap on a header button from it.
+import { Pressable } from 'react-native-gesture-handler';
 import { Text } from '@/components/ui/text';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

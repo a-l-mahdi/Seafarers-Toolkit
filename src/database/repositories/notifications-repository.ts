@@ -25,7 +25,7 @@ export async function listNotifications(includeDismissed = false): Promise<AppNo
   const db = await openDatabase();
   const dismissClause = includeDismissed ? '' : 'AND dismissed_at IS NULL';
   const rows = await db.getAllAsync<Record<string, unknown>>(
-    `SELECT * FROM notifications WHERE sent_at IS NOT NULL ${dismissClause} ORDER BY sent_at DESC LIMIT 200`
+    `SELECT * FROM notifications WHERE sent_at IS NOT NULL ${dismissClause} ORDER BY sent_at DESC LIMIT 200`,
   );
   return rows.map(mapRow);
 }
@@ -33,7 +33,7 @@ export async function listNotifications(includeDismissed = false): Promise<AppNo
 export async function unreadCount(): Promise<number> {
   const db = await openDatabase();
   const row = await db.getFirstAsync<{ c: number }>(
-    'SELECT COUNT(*) AS c FROM notifications WHERE sent_at IS NOT NULL AND read_at IS NULL AND dismissed_at IS NULL'
+    'SELECT COUNT(*) AS c FROM notifications WHERE sent_at IS NOT NULL AND read_at IS NULL AND dismissed_at IS NULL',
   );
   return row?.c ?? 0;
 }
@@ -42,7 +42,7 @@ export async function unreadCount(): Promise<number> {
 export async function getNotification(
   eventType: string,
   eventId: string,
-  notificationType: string
+  notificationType: string,
 ): Promise<{ id: string; sentAt: string | null; scheduledAt: string | null } | null> {
   const db = await openDatabase();
   const row = await db.getFirstAsync<Record<string, unknown>>(
@@ -50,7 +50,7 @@ export async function getNotification(
      WHERE event_type = ? AND event_id = ? AND notification_type = ?`,
     eventType,
     eventId,
-    notificationType
+    notificationType,
   );
   if (!row) return null;
   return {
@@ -58,6 +58,27 @@ export async function getNotification(
     sentAt: (row.sent_at as string) ?? null,
     scheduledAt: (row.scheduled_at as string) ?? null,
   };
+}
+
+export type NotificationKeyRow = { id: string; sentAt: string | null; scheduledAt: string | null };
+
+/** Every notification row by its dedupe key (`eventType|eventId|type`), in one query — for the reminder sync. */
+export async function loadNotificationIndex(): Promise<Map<string, NotificationKeyRow>> {
+  const db = await openDatabase();
+  const rows = await db.getAllAsync<{
+    id: string;
+    event_type: string;
+    event_id: string;
+    notification_type: string;
+    sent_at: string | null;
+    scheduled_at: string | null;
+  }>('SELECT id, event_type, event_id, notification_type, sent_at, scheduled_at FROM notifications');
+  return new Map(
+    rows.map((r) => [
+      `${r.event_type}|${r.event_id}|${r.notification_type}`,
+      { id: String(r.id), sentAt: r.sent_at ?? null, scheduledAt: r.scheduled_at ?? null },
+    ]),
+  );
 }
 
 /** Marks a previously-scheduled notification as delivered (its OS banner has fired). */
@@ -76,7 +97,7 @@ export async function pruneDocumentNotifications(keepEventIds: string[]): Promis
   const placeholders = keepEventIds.map(() => '?').join(',');
   await db.runAsync(
     `DELETE FROM notifications WHERE event_type = 'document' AND event_id NOT IN (${placeholders})`,
-    ...keepEventIds
+    ...keepEventIds,
   );
 }
 
@@ -88,10 +109,12 @@ export async function pruneDocumentNotifications(keepEventIds: string[]): Promis
  */
 export async function pruneEventNotifications(eventType: string, current: Map<string, string[]>): Promise<void> {
   const db = await openDatabase();
-  const rows = await db.getAllAsync<{ id: string; event_id: string; notification_type: string; sent_at: string | null }>(
-    'SELECT id, event_id, notification_type, sent_at FROM notifications WHERE event_type = ?',
-    eventType
-  );
+  const rows = await db.getAllAsync<{
+    id: string;
+    event_id: string;
+    notification_type: string;
+    sent_at: string | null;
+  }>('SELECT id, event_id, notification_type, sent_at FROM notifications WHERE event_type = ?', eventType);
   for (const row of rows) {
     const types = current.get(row.event_id);
     const stale = !types || (!row.sent_at && !types.includes(row.notification_type));
@@ -114,7 +137,7 @@ export async function markDeliveredByKey(eventType: string, eventId: string, not
     isoNow(),
     eventType,
     eventId,
-    notificationType
+    notificationType,
   );
 }
 
@@ -129,7 +152,7 @@ export async function markReadByKey(eventType: string, eventId: string, notifica
     now,
     eventType,
     eventId,
-    notificationType
+    notificationType,
   );
 }
 
@@ -140,13 +163,13 @@ export async function markReadForContract(contractId: string): Promise<void> {
     `UPDATE notifications SET read_at = ?
      WHERE event_type = 'contract' AND event_id = ? AND sent_at IS NOT NULL AND read_at IS NULL`,
     isoNow(),
-    contractId
+    contractId,
   );
 }
 
 /** Insert a notification; ignored if an identical one already exists (dedupe). */
 export async function upsertNotification(
-  input: Omit<AppNotification, 'id' | 'readAt' | 'dismissedAt' | 'createdAt'>
+  input: Omit<AppNotification, 'id' | 'readAt' | 'dismissedAt' | 'createdAt'>,
 ): Promise<boolean> {
   const db = await openDatabase();
   const result = await db.runAsync(
@@ -161,7 +184,7 @@ export async function upsertNotification(
     input.body,
     input.scheduledAt,
     input.sentAt,
-    isoNow()
+    isoNow(),
   );
   return result.changes > 0;
 }
@@ -189,6 +212,6 @@ export async function markReadForDocument(documentId: string): Promise<void> {
     `UPDATE notifications SET read_at = ?
      WHERE event_type = 'document' AND event_id = ? AND read_at IS NULL`,
     isoNow(),
-    documentId
+    documentId,
   );
 }

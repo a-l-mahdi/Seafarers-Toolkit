@@ -194,6 +194,9 @@ export default function RootLayout() {
                 screenOptions={{
                   headerShown: false,
                   presentation: 'card',
+                  // Screens deeper in the stack (e.g. the tabs while a contract is being
+                  // edited) stop re-rendering on every save and catch up once, on return.
+                  freezeOnBlur: true,
                 }}
               >
                 <Stack.Screen name="(tabs)" />

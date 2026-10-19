@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -104,7 +104,11 @@ function VesselForm({ initial }: { initial: Vessel | null }) {
     if (!name.trim()) errs.push(t('vessels.errors.nameRequired'));
     if (imo.trim() && !validateIMO(imo.trim())) errs.push(t('vessels.errors.imoInvalid'));
     setErrors(errs);
-    if (errs.length > 0) return;
+    if (errs.length > 0) {
+      // The messages under the form are out of sight when saving from the header.
+      Alert.alert(t('common.save'), errs.join('\n'));
+      return;
+    }
     const photoPath = photo;
     if (initial?.photoPath && photoPath !== initial.photoPath) void removeImportedFile(initial.photoPath);
     save.mutate({

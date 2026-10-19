@@ -38,33 +38,81 @@ export async function initNotifications(): Promise<void> {
   }
 }
 
-/** Presents a banner right now (no server / FCM needed — this is a local notification).
- *  Fired ~immediately on the high-importance 'alerts' channel so it appears as a
- *  heads-up in the status bar rather than silently in a default channel. */
-async function presentNow(title: string, body: string, documentId: string): Promise<void> {
+// --- scheduling plan ----------------------------------------------------
+
+/** One OS banner the sync wants scheduled. */
+interface Planned {
+  identifier: string;
+  content: Notifications.NotificationContentInput;
+  date: Date;
+}
+
+type BannerContent = { title: string; body: string; data: Record<string, unknown> };
+
+/** Banners fired "now" are one-offs: a later sync must never cancel them before they show. */
+const NOW_PREFIX = 'now:';
+
+/** Short stable hash, so a changed title / body (e.g. another language) reschedules the banner. */
+function hash(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+/** Plans a banner for `date`. Its identifier carries the key, the moment and the text, so an
+ *  unchanged reminder keeps its identifier and the next sync leaves it alone. */
+function plan(out: Planned[], key: string, date: Date, content: BannerContent): void {
+  out.push({
+    identifier: `${key}@${date.getTime()}#${hash(`${content.title}|${content.body}`)}`,
+    content: { ...content, sound: 'default' },
+    date,
+  });
+}
+
+/** Plans a banner that shows right away (a local notification, no server / FCM needed),
+ *  on the high-importance 'alerts' channel so it appears as a heads-up. */
+function planNow(out: Planned[], key: string, content: BannerContent): void {
+  out.push({
+    identifier: `${NOW_PREFIX}${key}@${Date.now()}`,
+    content: { ...content, sound: 'default' },
+    date: new Date(Date.now() + 1000),
+  });
+}
+
+/**
+ * Brings the OS schedule in line with the plan, touching only what changed: banners no
+ * longer wanted are cancelled, new or changed ones scheduled, unchanged ones left alone.
+ * (Cancelling and rescheduling everything after every save was slow with many entries.)
+ * Inexact DATE triggers, so no SCHEDULE_EXACT_ALARM permission is required; the library's
+ * boot receiver restores them after a reboot.
+ */
+async function applyPlan(planned: Planned[]): Promise<void> {
+  const wanted = new Set(planned.map((p) => p.identifier));
+  const have = new Set<string>();
   try {
-    await Notifications.scheduleNotificationAsync({
-      content: { title, body, sound: 'default', data: { documentId } },
-      trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + 1000), channelId: CHANNEL_ID },
-    });
+    for (const req of await Notifications.getAllScheduledNotificationsAsync()) {
+      if (wanted.has(req.identifier) || req.identifier.startsWith(NOW_PREFIX)) have.add(req.identifier);
+      else await Notifications.cancelScheduledNotificationAsync(req.identifier);
+    }
   } catch {
     // best-effort
+  }
+  for (const p of planned) {
+    if (have.has(p.identifier)) continue;
+    try {
+      await Notifications.scheduleNotificationAsync({
+        identifier: p.identifier,
+        content: p.content,
+        trigger: { type: SchedulableTriggerInputTypes.DATE, date: p.date, channelId: CHANNEL_ID },
+      });
+    } catch {
+      // best-effort
+    }
   }
 }
 
-/** Schedules a local banner for a future date (fires even if the app is closed;
- *  restored after reboot by the library's boot receiver). Inexact by default, so
- *  no SCHEDULE_EXACT_ALARM permission is required. */
-async function scheduleAt(title: string, body: string, fireDate: Date, documentId: string): Promise<void> {
-  try {
-    await Notifications.scheduleNotificationAsync({
-      content: { title, body, sound: 'default', data: { documentId } },
-      trigger: { type: SchedulableTriggerInputTypes.DATE, date: fireDate, channelId: CHANNEL_ID },
-    });
-  } catch {
-    // best-effort
-  }
-}
+type NotificationIndex = Awaited<ReturnType<typeof NotificationsRepo.loadNotificationIndex>>;
+const indexKey = (eventType: string, eventId: string, type: string) => `${eventType}|${eventId}|${type}`;
 
 // --- date helpers ---------------------------------------------------------
 
@@ -75,12 +123,9 @@ function isoMinusDays(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** A local Date at 09:00 on the given day; if that moment is already past, a few
- *  seconds from now so the banner still fires. */
-function fireMomentFor(iso: string): Date {
-  const at9 = new Date(`${iso}T09:00:00`);
-  const now = Date.now();
-  return at9.getTime() <= now ? new Date(now + 5000) : at9;
+/** Local 09:00 on the given day. */
+function nineOn(iso: string): Date {
+  return new Date(`${iso}T09:00:00`);
 }
 
 // --- severity gate --------------------------------------------------------
@@ -163,21 +208,21 @@ function eventsFor(doc: DocumentListRow): DocEvent[] {
 export async function syncNotifications(documents: DocumentListRow[], contracts?: ContractListRow[]): Promise<void> {
   const prefs = await getNotificationPrefs();
   const allContracts = contracts ?? (await listContracts());
+  // One read of every stored row instead of a query per reminder.
+  const index = await NotificationsRepo.loadNotificationIndex();
+  // The OS schedule is reconciled against this plan at the end, so edits and deletes
+  // never leave stale alarms.
+  const planned: Planned[] = [];
 
-  // Rebuild the OS schedule from scratch so edits/deletes never leave stale alarms.
-  try {
-    await Notifications.cancelAllScheduledNotificationsAsync();
-  } catch {
-    // best-effort
-  }
-  if (prefs.documentExpiry) await syncDocumentEvents(documents);
-  if (prefs.contractEnding) await syncContractEvents(allContracts);
+  if (prefs.documentExpiry) await syncDocumentEvents(documents, index, planned);
+  if (prefs.contractEnding) await syncContractEvents(allContracts, index, planned);
   // Note reminders were asked for explicitly, so they always run.
-  await syncNoteEvents(await listCalendarNotes());
+  await syncNoteEvents(await listCalendarNotes(), index, planned);
+  await applyPlan(planned);
   await pruneFinishedTripChecklists();
 }
 
-async function syncDocumentEvents(documents: DocumentListRow[]): Promise<void> {
+async function syncDocumentEvents(documents: DocumentListRow[], index: NotificationIndex, out: Planned[]) {
   const today = todayISO();
   const now = new Date();
   await NotificationsRepo.pruneDocumentNotifications(documents.map((d) => d.id));
@@ -193,11 +238,13 @@ async function syncDocumentEvents(documents: DocumentListRow[]): Promise<void> {
     );
 
     for (const ev of eventsFor(doc)) {
-      const existing = await NotificationsRepo.getNotification('document', doc.id, ev.type);
+      const existing = index.get(indexKey('document', doc.id, ev.type)) ?? null;
+      const content = { title: ev.title, body: ev.body, data: { documentId: doc.id } };
+      const at = nineOn(ev.fireISO);
 
-      if (ev.fireISO >= today) {
-        // Upcoming (or today): (re)schedule the banner and keep a hidden pending row.
-        await scheduleAt(ev.title, ev.body, fireMomentFor(ev.fireISO), doc.id);
+      if (at.getTime() > now.getTime()) {
+        // Upcoming: keep its banner scheduled and a hidden pending row.
+        plan(out, `doc:${doc.id}:${ev.type}`, at, content);
         if (!existing) {
           await NotificationsRepo.upsertNotification({
             eventType: 'document',
@@ -212,19 +259,19 @@ async function syncDocumentEvents(documents: DocumentListRow[]): Promise<void> {
         continue;
       }
 
-      // The event's day is in the past.
+      // Its moment has passed.
       if (existing) {
         if (!existing.sentAt) {
-          // We had scheduled it; its banner has already fired while away — just
-          // surface it in the centre now (no duplicate banner).
+          // We had scheduled it; its banner has already fired — just surface it in
+          // the centre now (no duplicate banner).
           await NotificationsRepo.markDelivered(existing.id, `${ev.fireISO}T09:00:00`);
         }
         continue;
       }
 
-      // Never seen before and already past: the user added a doc that is already
-      // in this state. Only surface the document's current (most-severe) stage.
-      if (EVENT_SEVERITY[ev.kind] < statusSeverity(status)) continue;
+      // Never seen before: due today, or the user added a doc that is already in
+      // this state. For past days only surface the document's current (most-severe) stage.
+      if (ev.fireISO < today && EVENT_SEVERITY[ev.kind] < statusSeverity(status)) continue;
       const inserted = await NotificationsRepo.upsertNotification({
         eventType: 'document',
         eventId: doc.id,
@@ -234,7 +281,7 @@ async function syncDocumentEvents(documents: DocumentListRow[]): Promise<void> {
         scheduledAt: null,
         sentAt: isoNow(),
       });
-      if (inserted) await presentNow(ev.title, ev.body, doc.id);
+      if (inserted) planNow(out, `doc:${doc.id}:${ev.type}`, content);
     }
   }
 }
@@ -285,27 +332,11 @@ function contractEventsFor(c: ContractListRow): ContractEvent[] {
   ];
 }
 
-async function scheduleContractAt(ev: ContractEvent, contractId: string, fireDate: Date): Promise<void> {
-  try {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: ev.title,
-        body: ev.body,
-        sound: 'default',
-        data: {
-          contractId,
-          reminder: ev.reminder,
-          eventType: 'contract',
-          eventId: contractId,
-          notificationType: ev.type,
-        },
-      },
-      trigger: { type: SchedulableTriggerInputTypes.DATE, date: fireDate, channelId: CHANNEL_ID },
-    });
-  } catch {
-    // best-effort
-  }
-}
+const contractContent = (ev: ContractEvent, contractId: string): BannerContent => ({
+  title: ev.title,
+  body: ev.body,
+  data: { contractId, reminder: ev.reminder, eventType: 'contract', eventId: contractId, notificationType: ev.type },
+});
 
 /**
  * Same model as documents: future reminders are scheduled with a hidden pending
@@ -313,7 +344,12 @@ async function scheduleContractAt(ev: ContractEvent, contractId: string, fireDat
  * that is due for a trip still ahead (e.g. the trip was added the evening before)
  * fires now, once. Reminders for days already gone are never raised late.
  */
-async function syncContractEvents(contracts: ContractListRow[], now: Date = new Date()): Promise<void> {
+async function syncContractEvents(
+  contracts: ContractListRow[],
+  index: NotificationIndex,
+  out: Planned[],
+  now: Date = new Date(),
+): Promise<void> {
   const current = new Map<string, string[]>();
   for (const c of contracts)
     current.set(
@@ -325,9 +361,9 @@ async function syncContractEvents(contracts: ContractListRow[], now: Date = new 
 
   for (const c of contracts) {
     for (const ev of contractEventsFor(c)) {
-      const existing = await NotificationsRepo.getNotification('contract', c.id, ev.type);
+      const existing = index.get(indexKey('contract', c.id, ev.type)) ?? null;
       if (ev.fireAt.getTime() > now.getTime()) {
-        await scheduleContractAt(ev, c.id, ev.fireAt);
+        plan(out, `trip:${c.id}:${ev.type}`, ev.fireAt, contractContent(ev, c.id));
         if (!existing) {
           await NotificationsRepo.upsertNotification({
             eventType: 'contract',
@@ -355,7 +391,7 @@ async function syncContractEvents(contracts: ContractListRow[], now: Date = new 
         scheduledAt: null,
         sentAt: isoNow(),
       });
-      if (inserted) await scheduleContractAt(ev, c.id, new Date(Date.now() + 1000));
+      if (inserted) planNow(out, `trip:${c.id}:${ev.type}`, contractContent(ev, c.id));
     }
   }
 }
@@ -377,7 +413,12 @@ const noteType = (note: CalendarNote) => `note_${note.date}T${note.time}`;
  * the centre. A reminder whose time had already passed when it was saved is
  * never raised late.
  */
-async function syncNoteEvents(notes: CalendarNote[], now: Date = new Date()): Promise<void> {
+async function syncNoteEvents(
+  notes: CalendarNote[],
+  index: NotificationIndex,
+  out: Planned[],
+  now: Date = new Date(),
+): Promise<void> {
   const current = new Map<string, string[]>();
   for (const n of notes) current.set(n.id, noteFireAt(n) ? [noteType(n)] : []);
   await NotificationsRepo.pruneEventNotifications('note', current);
@@ -388,21 +429,13 @@ async function syncNoteEvents(notes: CalendarNote[], now: Date = new Date()): Pr
     const type = noteType(note);
     const title = i18n.t('notifications.msg.noteTitle');
     const body = note.text;
-    const existing = await NotificationsRepo.getNotification('note', note.id, type);
+    const existing = index.get(indexKey('note', note.id, type)) ?? null;
     if (fireAt.getTime() > now.getTime()) {
-      try {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title,
-            body,
-            sound: 'default',
-            data: { noteId: note.id, eventType: 'note', eventId: note.id, notificationType: type },
-          },
-          trigger: { type: SchedulableTriggerInputTypes.DATE, date: fireAt, channelId: CHANNEL_ID },
-        });
-      } catch {
-        // best-effort
-      }
+      plan(out, `note:${note.id}:${type}`, fireAt, {
+        title,
+        body,
+        data: { noteId: note.id, eventType: 'note', eventId: note.id, notificationType: type },
+      });
       if (existing) {
         await NotificationsRepo.updatePendingContent(existing.id, title, body);
       } else {
@@ -478,7 +511,25 @@ export function resyncNotifications(): Promise<void> {
   return resyncing;
 }
 
-export const resyncDocumentNotifications = resyncNotifications;
+const RESYNC_DELAY_MS = 1200;
+let resyncTimer: ReturnType<typeof setTimeout> | null = null;
+let resyncWaiters: (() => void)[] = [];
+
+/** Reconciles reminders shortly after a change — call after any save or delete. A run of
+ *  saves (e.g. editing several contracts one after another) is folded into one pass that
+ *  starts once they stop, so the reschedule never competes with the user's edits. */
+export function requestResync(): Promise<void> {
+  return new Promise((resolve) => {
+    resyncWaiters.push(resolve);
+    if (resyncTimer) clearTimeout(resyncTimer);
+    resyncTimer = setTimeout(() => {
+      resyncTimer = null;
+      const waiters = resyncWaiters;
+      resyncWaiters = [];
+      void resyncNotifications().then(() => waiters.forEach((w) => w()));
+    }, RESYNC_DELAY_MS);
+  });
+}
 
 /** Asks for the notification permission if it is not granted yet; true when banners can show. */
 export async function ensureNotificationPermission(): Promise<boolean> {

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Alert, InteractionManager, KeyboardAvoidingView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, InteractionManager, Keyboard, KeyboardAvoidingView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -106,6 +106,8 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
   const [pending, setPending] = useState<DisplayFile[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  // Blocks a second save while one runs (header and form buttons, or a double tap).
+  const savingRef = useRef(false);
   // Render the (heavier) attachments section only after the open animation, so
   // editing a contract opens instantly instead of stalling on the transition.
   const [showFiles, setShowFiles] = useState(false);
@@ -177,6 +179,8 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
   const leave = useUnsavedGuard(dirty, () => void submit());
 
   async function submit() {
+    if (savingRef.current) return;
+    Keyboard.dismiss();
     const errs: string[] = [];
     if (!vesselId) errs.push(t('contracts.errors.vesselRequired'));
     if (!rankId) errs.push(t('contracts.errors.rankRequired'));
@@ -207,7 +211,12 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
       errs.push(t('contracts.errors.overlap'));
     }
     setErrors(errs);
-    if (errs.length > 0 || !preview) return;
+    if (errs.length > 0 || !preview) {
+      // The list under the form is out of sight when saving from the header.
+      if (errs.length > 0) Alert.alert(t('common.save'), [...new Set(errs)].join('\n'));
+      return;
+    }
+    savingRef.current = true;
     setSaving(true);
     try {
       const contract = await save.mutateAsync({
@@ -255,10 +264,16 @@ function ContractForm({ initial }: { initial: ContractListRow | null }) {
       showSavedToast();
       leave();
     } catch (err) {
-      if (err instanceof Error && err.message === 'CONTRACT_OVERLAP') {
-        setErrors([t('contracts.errors.overlap')]);
-      }
+      const message =
+        err instanceof Error && err.message === 'CONTRACT_OVERLAP'
+          ? t('contracts.errors.overlap')
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      setErrors([message]);
+      Alert.alert(t('common.save'), message);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }

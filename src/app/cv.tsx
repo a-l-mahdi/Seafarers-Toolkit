@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useRouter } from 'expo-router';
@@ -29,7 +29,8 @@ import { showSavedToast } from '@/components/saved-toast';
 import { newId } from '@/utils/id';
 import { Radius, Spacing } from '@/constants/theme';
 import { DEFAULT_AVATAR_CV_URI } from '@/constants/default-avatar-cv';
-import type { CvEducation, CvProfile, Vessel } from '@/types/domain';
+import { CV_MAX_ENTRIES, emptyBankAccount, emptyNextOfKin } from '@/domain/cv';
+import type { CvBankAccount, CvEducation, CvNextOfKin, CvProfile, CvSection, Vessel } from '@/types/domain';
 
 export default function CvScreen() {
   const { t } = useTranslation();
@@ -80,16 +81,19 @@ function CvForm({ initial, onBack }: { initial: CvProfile; onBack: () => void })
   const vesselsByName = new Map<string, Vessel>();
   for (const v of vessels ?? []) vesselsByName.set(v.name, v);
   const excluded = new Set(cv.excludedDocumentIds);
-  const sheet = buildCvSheet({
-    profile: profile ?? null,
-    cv,
-    documents: (documents ?? []).filter((d) => !excluded.has(d.id)),
-    contracts: contracts ?? [],
-    vesselsByName,
-    currentRankName: (ranks ?? []).find((r) => r.id === profile?.currentRankId)?.name ?? null,
-    // Without a photo of their own, the CV shows the default seafarer portrait.
-    hasPhoto: true,
-  });
+  const sheet =
+    mode === 'preview'
+      ? buildCvSheet({
+          profile: profile ?? null,
+          cv,
+          documents: (documents ?? []).filter((d) => !excluded.has(d.id)),
+          contracts: contracts ?? [],
+          vesselsByName,
+          currentRankName: (ranks ?? []).find((r) => r.id === profile?.currentRankId)?.name ?? null,
+          // Without a photo of their own, the CV shows the default seafarer portrait.
+          hasPhoto: true,
+        })
+      : null;
 
   const set = <K extends keyof CvProfile>(key: K, value: CvProfile[K]) => setCv((prev) => ({ ...prev, [key]: value }));
 
@@ -119,6 +123,33 @@ function CvForm({ initial, onBack }: { initial: CvProfile; onBack: () => void })
       },
     });
   };
+
+  const hidden = new Set(cv.hiddenSections);
+  const toggleSection = (section: CvSection, show: boolean) =>
+    set('hiddenSections', show ? cv.hiddenSections.filter((s) => s !== section) : [...cv.hiddenSections, section]);
+
+  const setKin = (id: string, patch: Partial<CvNextOfKin>) =>
+    set(
+      'nextOfKin',
+      cv.nextOfKin.map((k) => (k.id === id ? { ...k, ...patch } : k)),
+    );
+  const addKin = () => set('nextOfKin', [...cv.nextOfKin, emptyNextOfKin()]);
+  const removeKin = (id: string) =>
+    set(
+      'nextOfKin',
+      cv.nextOfKin.filter((k) => k.id !== id),
+    );
+  const setBank = (id: string, patch: Partial<CvBankAccount>) =>
+    set(
+      'bankAccounts',
+      cv.bankAccounts.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+    );
+  const addBank = () => set('bankAccounts', [...cv.bankAccounts, emptyBankAccount()]);
+  const removeBank = (id: string) =>
+    set(
+      'bankAccounts',
+      cv.bankAccounts.filter((b) => b.id !== id),
+    );
 
   const toggleDoc = (id: string, include: boolean) => {
     const next = new Set(cv.excludedDocumentIds);
@@ -172,7 +203,7 @@ function CvForm({ initial, onBack }: { initial: CvProfile; onBack: () => void })
             : [{ icon: 'create-outline', label: t('common.edit'), onPress: () => setMode('edit') }]
         }
       />
-      {mode === 'preview' ? (
+      {mode === 'preview' && sheet ? (
         <ScrollView
           style={{ flex: 1, backgroundColor: colors.background }}
           contentContainerStyle={{
@@ -201,15 +232,21 @@ function CvForm({ initial, onBack }: { initial: CvProfile; onBack: () => void })
         >
           <Text style={[styles.note, { color: colors.textMuted }]}>{t('cv.pulledNote')}</Text>
 
-          <Card>
-            <Text style={[styles.section, { color: colors.text }]}>{t('cv.sections.application')}</Text>
+          <SectionCard
+            title={t('cv.sections.application')}
+            shown={!hidden.has('application')}
+            onShownChange={(v) => toggleSection('application', v)}
+          >
             {textField('positionAppliedFor', 'cv.position')}
             {dateField('dateOfAvailability', 'cv.availableFrom')}
             {textField('addressedTo', 'cv.addressedTo')}
-          </Card>
+          </SectionCard>
 
-          <Card>
-            <Text style={[styles.section, { color: colors.text }]}>{t('cv.sections.personal')}</Text>
+          <SectionCard
+            title={t('cv.sections.personal')}
+            shown={!hidden.has('personal')}
+            onShownChange={(v) => toggleSection('personal', v)}
+          >
             {textField('middleName', 'cv.middleName')}
             <Select
               label={t('cv.gender')}
@@ -237,18 +274,24 @@ function CvForm({ initial, onBack }: { initial: CvProfile; onBack: () => void })
             {textField('bloodGroup', 'cv.bloodGroup')}
             {textField('languages', 'cv.languages')}
             {textField('nearestAirport', 'cv.nearestAirport')}
-          </Card>
+          </SectionCard>
 
-          <Card>
-            <Text style={[styles.section, { color: colors.text }]}>{t('cv.sections.ids')}</Text>
+          <SectionCard
+            title={t('cv.sections.ids')}
+            shown={!hidden.has('ids')}
+            onShownChange={(v) => toggleSection('ids', v)}
+          >
             <Text style={[styles.hint, { color: colors.textMuted }]}>{t('cv.idsNote')}</Text>
             {textField('nationalSeafarerId', 'cv.nationalId')}
             {textField('sidNumber', 'cv.sid')}
             {textField('unionMembership', 'cv.union')}
-          </Card>
+          </SectionCard>
 
-          <Card>
-            <Text style={[styles.section, { color: colors.text }]}>{t('cv.sections.documents')}</Text>
+          <SectionCard
+            title={t('cv.sections.documents')}
+            shown={!hidden.has('documents')}
+            onShownChange={(v) => toggleSection('documents', v)}
+          >
             <Text style={[styles.hint, { color: colors.textMuted }]}>{t('cv.documentsNote')}</Text>
             {(documents ?? []).length === 0 ? (
               <Text style={{ color: colors.textMuted, fontSize: 13 }}>{t('cv.noDocuments')}</Text>
@@ -262,10 +305,13 @@ function CvForm({ initial, onBack }: { initial: CvProfile; onBack: () => void })
                 />
               ))
             )}
-          </Card>
+          </SectionCard>
 
-          <Card>
-            <Text style={[styles.section, { color: colors.text }]}>{t('cv.sections.education')}</Text>
+          <SectionCard
+            title={t('cv.sections.education')}
+            shown={!hidden.has('education')}
+            onShownChange={(v) => toggleSection('education', v)}
+          >
             {cv.education.map((e) => (
               <View key={e.id} style={[styles.eduItem, { borderColor: colors.border }]}>
                 <View style={styles.eduHeader}>
@@ -302,29 +348,93 @@ function CvForm({ initial, onBack }: { initial: CvProfile; onBack: () => void })
               </View>
             ))}
             <Button label={t('cv.addEducation')} variant="secondary" onPress={addEdu} />
-          </Card>
+          </SectionCard>
 
-          <Card>
-            <Text style={[styles.section, { color: colors.text }]}>{t('cv.sections.nok')}</Text>
-            {textField('nokName', 'cv.nokName')}
-            {textField('nokRelationship', 'cv.nokRelationship')}
-            {textField('nokPhone', 'cv.nokPhone', 'phone-pad')}
-            {textField('nokAddress', 'cv.nokAddress')}
-          </Card>
+          <SectionCard
+            title={t('cv.sections.nok')}
+            shown={!hidden.has('nok')}
+            onShownChange={(v) => toggleSection('nok', v)}
+          >
+            {cv.nextOfKin.map((k, i) => (
+              <EntryBox
+                key={k.id}
+                title={cv.nextOfKin.length > 1 ? `${t('cv.sections.nok')} ${i + 1}` : null}
+                onRemove={cv.nextOfKin.length > 1 ? () => removeKin(k.id) : undefined}
+              >
+                <LabeledInput label={t('cv.nokName')} value={k.name} onChangeText={(v) => setKin(k.id, { name: v })} />
+                <LabeledInput
+                  label={t('cv.nokRelationship')}
+                  value={k.relationship}
+                  onChangeText={(v) => setKin(k.id, { relationship: v })}
+                />
+                <LabeledInput
+                  label={t('cv.nokPhone')}
+                  value={k.phone}
+                  onChangeText={(v) => setKin(k.id, { phone: v })}
+                  keyboardType="phone-pad"
+                />
+                <LabeledInput
+                  label={t('cv.nokAddress')}
+                  value={k.address}
+                  onChangeText={(v) => setKin(k.id, { address: v })}
+                />
+              </EntryBox>
+            ))}
+            {cv.nextOfKin.length < CV_MAX_ENTRIES ? (
+              <Button label={t('cv.addNok')} variant="secondary" onPress={addKin} />
+            ) : null}
+          </SectionCard>
 
-          <Card>
-            <Text style={[styles.section, { color: colors.text }]}>{t('cv.sections.bank')}</Text>
-            {textField('bankName', 'cv.bankName')}
-            {textField('bankAccountHolder', 'cv.accountHolder')}
-            {textField('bankAccountNumber', 'cv.accountNumber')}
-            {textField('bankBranchCode', 'cv.branchCode')}
-            {textField('bankSwift', 'cv.swift')}
-            {textField('bankIban', 'cv.iban')}
-            {textField('bankAddress', 'cv.bankAddress')}
-          </Card>
+          <SectionCard
+            title={t('cv.sections.bank')}
+            shown={!hidden.has('bank')}
+            onShownChange={(v) => toggleSection('bank', v)}
+          >
+            {cv.bankAccounts.map((b, i) => (
+              <EntryBox
+                key={b.id}
+                title={cv.bankAccounts.length > 1 ? `${t('cv.account')} ${i + 1}` : null}
+                onRemove={cv.bankAccounts.length > 1 ? () => removeBank(b.id) : undefined}
+              >
+                <LabeledInput
+                  label={t('cv.bankName')}
+                  value={b.bankName}
+                  onChangeText={(v) => setBank(b.id, { bankName: v })}
+                />
+                <LabeledInput
+                  label={t('cv.accountHolder')}
+                  value={b.accountHolder}
+                  onChangeText={(v) => setBank(b.id, { accountHolder: v })}
+                />
+                <LabeledInput
+                  label={t('cv.accountNumber')}
+                  value={b.accountNumber}
+                  onChangeText={(v) => setBank(b.id, { accountNumber: v })}
+                />
+                <LabeledInput
+                  label={t('cv.branchCode')}
+                  value={b.branchCode}
+                  onChangeText={(v) => setBank(b.id, { branchCode: v })}
+                />
+                <LabeledInput label={t('cv.swift')} value={b.swift} onChangeText={(v) => setBank(b.id, { swift: v })} />
+                <LabeledInput label={t('cv.iban')} value={b.iban} onChangeText={(v) => setBank(b.id, { iban: v })} />
+                <LabeledInput
+                  label={t('cv.bankAddress')}
+                  value={b.bankAddress}
+                  onChangeText={(v) => setBank(b.id, { bankAddress: v })}
+                />
+              </EntryBox>
+            ))}
+            {cv.bankAccounts.length < CV_MAX_ENTRIES ? (
+              <Button label={t('cv.addBank')} variant="secondary" onPress={addBank} />
+            ) : null}
+          </SectionCard>
 
-          <Card>
-            <Text style={[styles.section, { color: colors.text }]}>{t('cv.sections.health')}</Text>
+          <SectionCard
+            title={t('cv.sections.health')}
+            shown={!hidden.has('health')}
+            onShownChange={(v) => toggleSection('health', v)}
+          >
             <Checkbox
               label={t('cv.hMarineAccident')}
               value={cv.healthMarineAccident}
@@ -357,7 +467,7 @@ function CvForm({ initial, onBack }: { initial: CvProfile; onBack: () => void })
               onChangeText={(v) => set('healthDetails', v)}
               multiline
             />
-          </Card>
+          </SectionCard>
         </FormScrollView>
       )}
       {mode === 'preview' ? (
@@ -402,7 +512,7 @@ function CvForm({ initial, onBack }: { initial: CvProfile; onBack: () => void })
           ]}
         />
       ) : null}
-      {zoomPage !== null ? (
+      {zoomPage !== null && sheet ? (
         <ZoomViewer
           items={pagesOf(sheet)}
           initialIndex={zoomPage}
@@ -424,11 +534,83 @@ function CvForm({ initial, onBack }: { initial: CvProfile; onBack: () => void })
   );
 }
 
+/** A form card with a tick at its title: ticked = the section appears in the CV. */
+function SectionCard({
+  title,
+  shown,
+  onShownChange,
+  children,
+}: {
+  title: string;
+  shown: boolean;
+  onShownChange: (shown: boolean) => void;
+  children: ReactNode;
+}) {
+  const colors = useTheme();
+  return (
+    <Card>
+      <Pressable
+        onPress={() => onShownChange(!shown)}
+        accessibilityRole="checkbox"
+        accessibilityLabel={title}
+        accessibilityState={{ checked: shown }}
+        hitSlop={6}
+        style={styles.sectionHead}
+      >
+        <Text style={[styles.section, styles.sectionTitle, { color: shown ? colors.text : colors.textMuted }]}>
+          {title}
+        </Text>
+        <View
+          style={[
+            styles.tick,
+            shown
+              ? { backgroundColor: colors.primary, borderColor: colors.primary }
+              : { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          {shown ? <Ionicons name="checkmark" size={16} color={colors.onPrimary} /> : null}
+        </View>
+      </Pressable>
+      {shown ? <View style={styles.sectionBody}>{children}</View> : null}
+    </Card>
+  );
+}
+
+/** One entry of a list (a next of kin, a bank account), with its number and a remove button. */
+function EntryBox({ title, onRemove, children }: { title: string | null; onRemove?: () => void; children: ReactNode }) {
+  const colors = useTheme();
+  if (!title && !onRemove) return <>{children}</>;
+  return (
+    <View style={[styles.eduItem, { borderColor: colors.border }]}>
+      <View style={styles.eduHeader}>
+        <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '700' }}>{title}</Text>
+        {onRemove ? (
+          <Pressable onPress={onRemove} hitSlop={8} accessibilityRole="button" accessibilityLabel={title ?? ''}>
+            <Ionicons name="trash-outline" size={18} color={colors.danger} />
+          </Pressable>
+        ) : null}
+      </View>
+      {children}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xxl },
   note: { fontSize: 12, lineHeight: 18 },
   hint: { fontSize: 12, marginBottom: Spacing.sm },
   section: { fontSize: 15, fontWeight: '700', marginBottom: Spacing.sm },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  sectionTitle: { flex: 1, marginBottom: 0 },
+  sectionBody: { marginTop: Spacing.md },
+  tick: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   eduItem: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
   eduHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs },
   bar: { position: 'absolute', left: Spacing.lg, right: Spacing.lg, flexDirection: 'row', gap: Spacing.sm },

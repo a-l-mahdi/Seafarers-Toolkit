@@ -10,7 +10,8 @@
  */
 import { diffInDays } from '@/utils/date';
 import { countryLabel } from '@/domain/countries';
-import type { CvProfile, Profile, Vessel } from '@/types/domain';
+import { isBlankEntry } from '@/domain/cv';
+import type { CvProfile, CvSection, Profile, Vessel } from '@/types/domain';
 
 export const COLS = 24;
 export const COL_PX = 29.5;
@@ -209,7 +210,13 @@ function lineCount(text: string, style: CellStyle, span: number): number {
 }
 
 export function buildCvSheet(src: CvSource): CvSheet {
-  const { profile, cv, documents, contracts, vesselsByName, currentRankName } = src;
+  const { profile, documents, contracts, vesselsByName, currentRankName } = src;
+  const hidden = new Set(src.cv.hiddenSections);
+  const shown = (s: CvSection) => !hidden.has(s);
+  // A left-out application card leaves its fields out everywhere (header band included).
+  const cv = shown('application')
+    ? src.cv
+    : { ...src.cv, positionAppliedFor: '', dateOfAvailability: null, addressedTo: '' };
   const rows: Row[] = [];
   const images: SheetImage[] = [];
 
@@ -347,23 +354,25 @@ export function buildCvSheet(src: CvSource): CvSheet {
   const genderMap: Record<string, string> = { male: 'Male', female: 'Female' };
   const maritalMap: Record<string, string> = { single: 'Single', married: 'Married', other: 'Other' };
 
-  section('Personal details');
-  fields([
-    ['Position applied for', cv.positionAppliedFor],
-    ['Present rank', currentRankName ?? ''],
-    ['Date of birth', fmt(profile?.dateOfBirth)],
-    ['Place of birth', cv.placeOfBirth],
-    ['Nationality', nationality ?? ''],
-    ['Gender', genderMap[cv.gender] ?? ''],
-    ['Marital status', maritalMap[cv.maritalStatus] ?? ''],
-    ['Children', cv.children],
-    ['Height', cv.heightCm ? `${cv.heightCm} cm` : ''],
-    ['Weight', cv.weightKg ? `${cv.weightKg} kg` : ''],
-    ['Blood group', cv.bloodGroup],
-    ['Languages', cv.languages],
-    ['Nearest airport', cv.nearestAirport],
-    ['Available from', fmt(cv.dateOfAvailability)],
-  ]);
+  if (shown('personal')) {
+    section('Personal details');
+    fields([
+      ['Position applied for', cv.positionAppliedFor],
+      ['Present rank', currentRankName ?? ''],
+      ['Date of birth', fmt(profile?.dateOfBirth)],
+      ['Place of birth', cv.placeOfBirth],
+      ['Nationality', nationality ?? ''],
+      ['Gender', genderMap[cv.gender] ?? ''],
+      ['Marital status', maritalMap[cv.maritalStatus] ?? ''],
+      ['Children', cv.children],
+      ['Height', cv.heightCm ? `${cv.heightCm} cm` : ''],
+      ['Weight', cv.weightKg ? `${cv.weightKg} kg` : ''],
+      ['Blood group', cv.bloodGroup],
+      ['Languages', cv.languages],
+      ['Nearest airport', cv.nearestAirport],
+      ['Available from', fmt(cv.dateOfAvailability)],
+    ]);
+  }
 
   section('Contact & address');
   fields([
@@ -376,16 +385,18 @@ export function buildCvSheet(src: CvSource): CvSheet {
     ],
   ]);
 
-  section('Identification');
-  fields([
-    ['Passport no.', profile?.passportNumber ?? ''],
-    ["Seaman's book no.", profile?.seamanBookNumber ?? ''],
-    ['National seafarer ID', cv.nationalSeafarerId],
-    ['SID no.', cv.sidNumber],
-    ['Union membership', cv.unionMembership],
-  ]);
+  if (shown('ids')) {
+    section('Identification');
+    fields([
+      ['Passport no.', profile?.passportNumber ?? ''],
+      ["Seaman's book no.", profile?.seamanBookNumber ?? ''],
+      ['National seafarer ID', cv.nationalSeafarerId],
+      ['SID no.', cv.sidNumber],
+      ['Union membership', cv.unionMembership],
+    ]);
+  }
 
-  if (documents.length) {
+  if (shown('documents') && documents.length) {
     section('Certificates & documents');
     table(
       ['Certificate', 'Number', 'Issued', 'Expiry', 'Place of issue'],
@@ -429,7 +440,7 @@ export function buildCvSheet(src: CvSource): CvSheet {
     gap(10);
   }
 
-  if (cv.education.length) {
+  if (shown('education') && cv.education.length) {
     section('Education & training');
     table(
       ['Institution', 'Period', 'Qualification', 'Location'],
@@ -444,40 +455,63 @@ export function buildCvSheet(src: CvSource): CvSheet {
     gap(10);
   }
 
-  section('Next of kin');
-  fields([
-    ['Name', cv.nokName],
-    ['Relationship', cv.nokRelationship],
-    ['Phone', cv.nokPhone],
-    ['Address', cv.nokAddress],
-  ]);
+  const kin = cv.nextOfKin.filter((k) => !isBlankEntry(k));
+  if (shown('nok') && kin.length) {
+    section('Next of kin');
+    if (kin.length === 1) {
+      fields([
+        ['Name', kin[0].name],
+        ['Relationship', kin[0].relationship],
+        ['Phone', kin[0].phone],
+        ['Address', kin[0].address],
+      ]);
+    } else {
+      table(
+        ['Name', 'Relationship', 'Phone', 'Address'],
+        [3, 2, 3, 4],
+        kin.map((k) => [k.name, k.relationship, k.phone, k.address]),
+      );
+      gap(10);
+    }
+  }
 
-  section('Bank details');
-  fields([
-    ['Bank name', cv.bankName],
-    ['Account holder', cv.bankAccountHolder],
-    ['Account no.', cv.bankAccountNumber],
-    ['Branch code', cv.bankBranchCode],
-    ['SWIFT', cv.bankSwift],
-    ['IBAN', cv.bankIban],
-    ['Bank address', cv.bankAddress],
-  ]);
+  const accounts = cv.bankAccounts.filter((b) => !isBlankEntry(b));
+  if (shown('bank') && accounts.length) {
+    section('Bank details');
+    accounts.forEach((b, i) => {
+      if (accounts.length > 1) {
+        push([c(0, 12, `Account ${i + 1}`, 'th')], 17);
+        keepLast();
+      }
+      fields([
+        ['Bank name', b.bankName],
+        ['Account holder', b.accountHolder],
+        ['Account no.', b.accountNumber],
+        ['Branch code', b.branchCode],
+        ['SWIFT', b.swift],
+        ['IBAN', b.iban],
+        ['Bank address', b.bankAddress],
+      ]);
+    });
+  }
 
-  section('Health declaration');
-  const health: [string, boolean][] = [
-    ['Involved in any marine accident / investigation', cv.healthMarineAccident],
-    ['Suffered an accident causing temporary / partial disability', cv.healthDisability],
-    ['Currently under medical treatment / medication', cv.healthMedication],
-    ['Suffer from any disease affecting fitness for sea service', cv.healthDisease],
-    ['Underwent psychiatric treatment', cv.healthPsychiatric],
-    ['Addicted to alcohol or drugs', cv.healthAddiction],
-  ];
-  health.forEach(([q, yes], i) =>
-    push([c(0, 10, q, i % 2 ? 'tdZebra' : 'td'), c(10, 2, yes ? 'YES' : 'NO', yes ? 'answerYes' : 'answerNo')], 16),
-  );
-  if (cv.healthDetails) {
-    gap(4);
-    push([c(0, 12, cv.healthDetails, 'note')], 14);
+  if (shown('health')) {
+    section('Health declaration');
+    const health: [string, boolean][] = [
+      ['Involved in any marine accident / investigation', cv.healthMarineAccident],
+      ['Suffered an accident causing temporary / partial disability', cv.healthDisability],
+      ['Currently under medical treatment / medication', cv.healthMedication],
+      ['Suffer from any disease affecting fitness for sea service', cv.healthDisease],
+      ['Underwent psychiatric treatment', cv.healthPsychiatric],
+      ['Addicted to alcohol or drugs', cv.healthAddiction],
+    ];
+    health.forEach(([q, yes], i) =>
+      push([c(0, 10, q, i % 2 ? 'tdZebra' : 'td'), c(10, 2, yes ? 'YES' : 'NO', yes ? 'answerYes' : 'answerNo')], 16),
+    );
+    if (cv.healthDetails) {
+      gap(4);
+      push([c(0, 12, cv.healthDetails, 'note')], 14);
+    }
   }
 
   // ---------------- Signature & footer ----------------

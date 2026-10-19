@@ -23,12 +23,7 @@ import * as NotificationsRepo from '@/database/repositories/notifications-reposi
 import * as TripFilesRepo from '@/database/repositories/trip-files-repository';
 import * as ChecklistRepo from '@/database/repositories/checklist-repository';
 import * as NotesRepo from '@/database/repositories/calendar-notes-repository';
-import {
-  clearDeliveredForContract,
-  clearDeliveredForDocument,
-  resyncDocumentNotifications,
-  resyncNotifications,
-} from '@/services/notification-service';
+import { clearDeliveredForContract, clearDeliveredForDocument, requestResync } from '@/services/notification-service';
 import type { ContractListRow, DocumentListRow } from '@/database/repositories';
 import type { DocumentSort } from '@/domain/document-sort';
 
@@ -202,7 +197,7 @@ export function useSaveContract() {
       qc.invalidateQueries({ queryKey: queryKeys.seaTime });
       // Trip reminders follow the dates; a signed-off trip's checklist is dropped.
       // Rescheduling reminders can take seconds: do it in the background so saving returns at once.
-      void resyncNotifications().then(() => {
+      void requestResync().then(() => {
         qc.invalidateQueries({ queryKey: queryKeys.notifications });
         qc.invalidateQueries({ queryKey: ['trip-checklist'] });
       });
@@ -219,7 +214,7 @@ export function useSignOffContract() {
       qc.invalidateQueries({ queryKey: queryKeys.seaTime });
       // Trip reminders follow the dates; a signed-off trip's checklist is dropped.
       // Rescheduling reminders can take seconds: do it in the background so saving returns at once.
-      void resyncNotifications().then(() => {
+      void requestResync().then(() => {
         qc.invalidateQueries({ queryKey: queryKeys.notifications });
         qc.invalidateQueries({ queryKey: ['trip-checklist'] });
       });
@@ -236,7 +231,7 @@ export function useDeleteContract() {
       qc.invalidateQueries({ queryKey: queryKeys.seaTime });
       // Trip reminders follow the dates; a signed-off trip's checklist is dropped.
       // Rescheduling reminders can take seconds: do it in the background so saving returns at once.
-      void resyncNotifications().then(() => {
+      void requestResync().then(() => {
         qc.invalidateQueries({ queryKey: queryKeys.notifications });
         qc.invalidateQueries({ queryKey: ['trip-checklist'] });
       });
@@ -272,7 +267,7 @@ export function useSaveDocument() {
       // Reconcile reminders right away so a just-added expired / in-window doc alerts now.
       qc.invalidateQueries({ queryKey: queryKeys.documents });
       // Rescheduling reminders can take seconds: do it in the background so saving returns at once.
-      void resyncDocumentNotifications().then(() => qc.invalidateQueries({ queryKey: queryKeys.notifications }));
+      void requestResync().then(() => qc.invalidateQueries({ queryKey: queryKeys.notifications }));
     },
   });
 }
@@ -284,7 +279,7 @@ export function useDeleteDocument() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.documents });
       // Rescheduling reminders can take seconds: do it in the background so saving returns at once.
-      void resyncDocumentNotifications().then(() => qc.invalidateQueries({ queryKey: queryKeys.notifications }));
+      void requestResync().then(() => qc.invalidateQueries({ queryKey: queryKeys.notifications }));
     },
   });
 }
@@ -580,7 +575,7 @@ export function useSaveCalendarNote() {
   return useMutation({
     mutationFn: async (input: Parameters<typeof NotesRepo.saveCalendarNote>[0]) => {
       const note = await NotesRepo.saveCalendarNote(input);
-      void resyncNotifications().then(() => qc.invalidateQueries({ queryKey: queryKeys.notifications }));
+      void requestResync().then(() => qc.invalidateQueries({ queryKey: queryKeys.notifications }));
       return note;
     },
     onSuccess: () => {
@@ -595,7 +590,7 @@ export function useDeleteCalendarNote() {
   return useMutation({
     mutationFn: async (id: string) => {
       await NotesRepo.deleteCalendarNote(id);
-      void resyncNotifications().then(() => qc.invalidateQueries({ queryKey: queryKeys.notifications }));
+      void requestResync().then(() => qc.invalidateQueries({ queryKey: queryKeys.notifications }));
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.calendarNotes });

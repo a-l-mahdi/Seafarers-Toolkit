@@ -186,10 +186,14 @@ function DocumentForm({ initial }: { initial: DocumentListRow | null }) {
   async function submit() {
     if (!name.trim()) {
       setError(t('documents.errors.nameRequired'));
+      // The message under the form is out of sight when saving from the header.
+      Alert.alert(t('common.save'), t('documents.errors.nameRequired'));
       return;
     }
     if (!unlimited && issueDate && expiryDate && expiryDate <= issueDate) {
       setError(t('documents.errors.expiryBeforeIssue'));
+      // The message under the form is out of sight when saving from the header.
+      Alert.alert(t('common.save'), t('documents.errors.expiryBeforeIssue'));
       return;
     }
     setSaving(true);
